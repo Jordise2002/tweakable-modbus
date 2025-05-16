@@ -21,10 +21,10 @@ where
         }
     }
 
-    fn deserialize(data: Vec<u8>, subprotocol: ModbusSubprotocol) -> Result<Self,String>
+    fn deserialize(data: Vec<u8>, subprotocol: ModbusSubprotocol) -> Result<Vec<Self>,String>
     {
         match subprotocol {
-            ModbusSubprotocol::ModbusTCP => ModbusTcpSerialize::tcp_desrialize(data),
+            ModbusSubprotocol::ModbusTCP => ModbusTcpSerialize::tcp_deserialize(data),
             ModbusSubprotocol::ModbusRTU => ModbusRtuSerialize::rtu_deserialize(data),
             ModbusSubprotocol::ModbusRTUOverTCP => ModbusRtuOverTcpSerialize::rtu_over_tcp_deserialize(data)
         }
