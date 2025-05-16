@@ -75,7 +75,5 @@ pub struct ModbusMessageData {
     pub transaction_id: u16,
 }
 
-use std::u16;
-
 pub use query::ModbusQuery;
 pub use response::ModbusResponse;
