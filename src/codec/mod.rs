@@ -1,10 +1,13 @@
-mod rtu;
-mod rtu_over_tcp;
-mod tcp;
+pub mod rtu;
+pub mod rtu_over_tcp;
+pub mod tcp;
+pub mod utils;
 
 use rtu::ModbusRtuSerialize;
 use rtu_over_tcp::ModbusRtuOverTcpSerialize;
 use tcp::ModbusTcpSerialize;
+
+use anyhow::Result;
 
 use crate::connection::ModbusSubprotocol;
 
@@ -13,7 +16,7 @@ pub trait ModbusSerialize:
 where
     Self: Sized,
 {
-    fn serialize(&self, subprotocol: ModbusSubprotocol) -> Result<Vec<u8>, String> {
+    fn serialize(&self, subprotocol: ModbusSubprotocol) -> Result<Vec<u8>> {
         match subprotocol {
             ModbusSubprotocol::ModbusTCP => self.tcp_serialize(),
             ModbusSubprotocol::ModbusRTU => self.rtu_serialize(),
@@ -21,7 +24,7 @@ where
         }
     }
 
-    fn deserialize(data: Vec<u8>, subprotocol: ModbusSubprotocol) -> Result<Vec<Self>,String>
+    fn deserialize(data: Vec<u8>, subprotocol: ModbusSubprotocol) -> Result<Vec<Self>>
     {
         match subprotocol {
             ModbusSubprotocol::ModbusTCP => ModbusTcpSerialize::tcp_deserialize(data),
