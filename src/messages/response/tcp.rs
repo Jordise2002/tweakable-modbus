@@ -167,7 +167,7 @@ impl ModbusTcpSerialize for ModbusResponse {
 
                 read_response.extend_from_slice(&values);
 
-                let mbap = crate::codec::tcp::serialize_mbap(message_data, read_response.len() as u16 + 1);
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, read_response.len() as u16 + 1)?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&read_response);
@@ -183,7 +183,7 @@ impl ModbusTcpSerialize for ModbusResponse {
 
                 single_write_response.extend_from_slice(&value.to_be_bytes());
 
-                let mbap = crate::codec::tcp::serialize_mbap(message_data, single_write_response.len() as u16 + 1);
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, single_write_response.len() as u16 + 1)?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&single_write_response);
@@ -197,7 +197,7 @@ impl ModbusTcpSerialize for ModbusResponse {
 
                 multiple_write_response.extend_from_slice(&params.ammount.to_be_bytes());
 
-                let mbap = crate::codec::tcp::serialize_mbap(message_data, multiple_write_response.len() as u16 + 1);
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, multiple_write_response.len() as u16 + 1)?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&multiple_write_response);
@@ -209,7 +209,7 @@ impl ModbusTcpSerialize for ModbusResponse {
 
                 error_response.push(*exception_code as u8);
                 
-                let mbap = crate::codec::tcp::serialize_mbap(message_data, error_response.len() as u16 + 1);
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, error_response.len() as u16 + 1)?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&error_response);

@@ -3,7 +3,8 @@ use crate::messages::{FunctionCode, ModbusMessageData};
 use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ReadBytesExt};
 
-use std::io::{Cursor};
+use std::cell::Cell;
+use std::io::Cursor;
 pub trait ModbusTcpSerialize
 where
     Self: Sized,
@@ -12,11 +13,15 @@ where
     fn tcp_deserialize(data: Vec<u8>) -> Result<Vec<Self>>;
 }
 
-pub fn serialize_mbap(message_data: &ModbusMessageData, length: u16) -> Vec<u8> {
+pub fn serialize_mbap(message_data: &ModbusMessageData, length: u16) -> Result<Vec<u8>> {
     let mut result = Vec::new();
 
+    let transaction_id = message_data
+        .transaction_id
+        .get()
+        .ok_or_else(|| anyhow!("Trying to serialize a message without transaction id"))?;
     //Transaction Identifier
-    result.extend_from_slice(&message_data.transaction_id.to_be_bytes());
+    result.extend_from_slice(&transaction_id.to_be_bytes());
 
     //Protocol Identifier: 0u16 means Modbus
     result.extend_from_slice(&0u16.to_be_bytes());
@@ -27,7 +32,7 @@ pub fn serialize_mbap(message_data: &ModbusMessageData, length: u16) -> Vec<u8> 
     //Slave Id
     result.push(message_data.slave_id);
 
-    result
+    Ok(result)
 }
 
 pub fn deserialize_mbap(data: &mut Cursor<Vec<u8>>) -> Result<(ModbusMessageData, u16)> {
@@ -51,7 +56,7 @@ pub fn deserialize_mbap(data: &mut Cursor<Vec<u8>>) -> Result<(ModbusMessageData
 
     Ok((
         ModbusMessageData {
-            transaction_id,
+            transaction_id: Cell::new(Some(transaction_id)),
             slave_id,
             function_code: FunctionCode::NoFunctionCode,
         },

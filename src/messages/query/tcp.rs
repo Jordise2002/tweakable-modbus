@@ -105,7 +105,7 @@ impl ModbusTcpSerialize for ModbusQuery {
                 read_query.extend_from_slice(&params.ammount.to_be_bytes());
 
                 let mbap =
-                    crate::codec::tcp::serialize_mbap(message_data, (read_query.len() + 1) as u16);
+                    crate::codec::tcp::serialize_mbap(message_data, (read_query.len() + 1) as u16)?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&read_query);
@@ -129,7 +129,7 @@ impl ModbusTcpSerialize for ModbusQuery {
                 let mbap = crate::codec::tcp::serialize_mbap(
                     message_data,
                     (single_write_query.len() + 1) as u16,
-                );
+                )?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&single_write_query);
@@ -157,7 +157,7 @@ impl ModbusTcpSerialize for ModbusQuery {
                 let mbap = crate::codec::tcp::serialize_mbap(
                     message_data,
                     (multiple_write_query.len() + 1) as u16,
-                );
+                )?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&multiple_write_query);
@@ -193,7 +193,7 @@ impl ModbusTcpSerialize for ModbusQuery {
                 let mbap = crate::codec::tcp::serialize_mbap(
                     message_data,
                     multiple_write_read_query.len() as u16 + 1,
-                );
+                )?;
 
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&multiple_write_read_query);
@@ -363,7 +363,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 1,
                     function_code: FunctionCode::ReadCoils,
-                    transaction_id: 1,
+                    transaction_id: Cell::new(Some(1)),
                 },
                 params: query::ReadQueryParameters {
                     table: ModbusTable::Coils,
@@ -375,7 +375,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 3,
                     function_code: FunctionCode::ReadInputRegisters,
-                    transaction_id: 2,
+                    transaction_id: Cell::new(Some(2)),
                 },
                 params: query::ReadQueryParameters {
                     table: ModbusTable::InputRegisters,
@@ -387,7 +387,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 1,
                     function_code: FunctionCode::ReadMultipleHoldingRegister,
-                    transaction_id: 1,
+                    transaction_id: Cell::new(Some(1),)
                 },
                 params: query::ReadQueryParameters {
                     table: ModbusTable::HoldingRegisters,
@@ -399,7 +399,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 0xFF,
                     function_code: FunctionCode::ReadDiscreteInputs,
-                    transaction_id: 0xFFFF,
+                    transaction_id: Cell::new(Some(2)),
                 },
                 params: query::ReadQueryParameters {
                     table: ModbusTable::DiscreteInput,
@@ -419,7 +419,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 3,
                     function_code: FunctionCode::WriteSingleCoil,
-                    transaction_id: 33,
+                    transaction_id: Cell::new(Some(33)),
                 },
                 params: query::SingleWriteQueryParameters {
                     table: ModbusTable::Coils,
@@ -431,7 +431,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 90,
                     function_code: FunctionCode::WriteSingleHoldingRegister,
-                    transaction_id: 87,
+                    transaction_id: Cell::new(Some(87)),
                 },
                 params: query::SingleWriteQueryParameters {
                     table: ModbusTable::HoldingRegisters,
@@ -450,7 +450,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 8,
                     function_code: FunctionCode::WriteMultipleCoils,
-                    transaction_id: 67,
+                    transaction_id: Cell::new(Some(67)),
                 },
                 params: query::MultipleWriteQueryParameters {
                     table: ModbusTable::Coils,
@@ -466,7 +466,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 33,
                     function_code: FunctionCode::WriteMultipleHoldingRegisters,
-                    transaction_id: 89,
+                    transaction_id: Cell::new(Some(89)),
                 },
                 params: query::MultipleWriteQueryParameters {
                     table: ModbusTable::HoldingRegisters,
@@ -488,7 +488,7 @@ mod test {
             message_data: ModbusMessageData {
                 slave_id: 33,
                 function_code: FunctionCode::ReadWriteMultipleRegisters,
-                transaction_id: 83,
+                transaction_id: Cell::new(Some(83)),
             },
             params: query::MultipleReadWriteQueryParameters{
                 read_starting_address: 0,

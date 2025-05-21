@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use num_enum::TryFromPrimitive;
+use std::cell::Cell;
 
 pub mod query;
 pub mod response;
@@ -102,7 +103,7 @@ pub enum ExceptionCode {
 pub struct ModbusMessageData {
     pub slave_id: u8,
     pub function_code: FunctionCode,
-    pub transaction_id: u16,
+    pub transaction_id: Cell<Option<u16>>,
 }
 
 pub use query::ModbusQuery;
