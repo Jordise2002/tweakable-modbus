@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{fs::read, io::Read, os::linux::raw};
 
 use crate::codec::tcp::ModbusTcpSerialize;
 
@@ -155,6 +155,69 @@ impl ModbusTcpSerialize for ModbusResponse {
     }
 
     fn tcp_serialize(&self) -> Result<Vec<u8>> {
-        Err(anyhow!("Not implemented!"))
+        let mut result = vec![];
+        match self
+        {
+            ModbusResponse::ReadResponse { message_data, params } => {
+                let mut read_response = vec![];
+
+                read_response.push(message_data.function_code as u8);
+
+                let values = crate::codec::utils::serialize_values(&params.values)?;
+
+                read_response.extend_from_slice(&values);
+
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, read_response.len() as u16 + 1);
+
+                result.extend_from_slice(&mbap);
+                result.extend_from_slice(&read_response);
+            }
+            ModbusResponse::SingleWriteResponse { message_data , params } => {
+                let mut single_write_response = vec![];
+
+                single_write_response.push(message_data.function_code as u8);
+
+                single_write_response.extend_from_slice(&params.address.to_be_bytes());
+
+                let value = params.value.get_representation();
+
+                single_write_response.extend_from_slice(&value.to_be_bytes());
+
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, single_write_response.len() as u16 + 1);
+
+                result.extend_from_slice(&mbap);
+                result.extend_from_slice(&single_write_response);
+            }
+            ModbusResponse::MultipleWriteResponse { message_data, params } => {
+                let mut multiple_write_response = vec![];
+
+                multiple_write_response.push(message_data.function_code as u8);
+
+                multiple_write_response.extend_from_slice(&params.address.to_be_bytes());
+
+                multiple_write_response.extend_from_slice(&params.ammount.to_be_bytes());
+
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, multiple_write_response.len() as u16 + 1);
+
+                result.extend_from_slice(&mbap);
+                result.extend_from_slice(&multiple_write_response);
+            }
+            ModbusResponse::Error { message_data, exception_code } => {
+                let mut error_response = vec![];
+
+                error_response.push(message_data.function_code as u8 + 0x80);
+
+                error_response.push(*exception_code as u8);
+                
+                let mbap = crate::codec::tcp::serialize_mbap(message_data, error_response.len() as u16 + 1);
+
+                result.extend_from_slice(&mbap);
+                result.extend_from_slice(&error_response);
+            }
+            _ => {
+
+            }
+        };
+        Ok(result)
     }
 }
