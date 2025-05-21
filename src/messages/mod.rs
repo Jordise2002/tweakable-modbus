@@ -1,8 +1,8 @@
-pub mod query;
-pub mod response;
-
 use anyhow::{anyhow, Result};
 use num_enum::TryFromPrimitive;
+
+pub mod query;
+pub mod response;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ModbusTable {

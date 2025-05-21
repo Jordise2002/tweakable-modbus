@@ -1,6 +1,7 @@
 use crate::messages::{ModbusDataType, ModbusTable};
 
 use anyhow::{anyhow, Result};
+use tokio::time::error::Elapsed;
 use std::mem::discriminant;
 use std::io::{Cursor};
 use byteorder::{BigEndian, ReadBytesExt};
@@ -68,10 +69,23 @@ pub fn serialize_values(values: &Vec<ModbusDataType>) -> Result<Vec<u8>> {
 
 pub fn deserialize_values(
     table: ModbusTable,
-    ammount: u16,
+    ammount: Option<u16>,
     data: &mut Cursor<Vec<u8>>,
 ) -> Result<Vec<ModbusDataType>> {
+
     let byte_count = data.read_u8()? as u16;
+
+    //If we have no ammount, we make one up
+    //I have to do this because modbus doesn't tell you how many registers como in a read response
+    let ammount = if let Some(ammount) = ammount {
+        ammount
+    }
+    else {
+        match table {
+            ModbusTable::Coils | ModbusTable::DiscreteInput => byte_count * 8,
+            ModbusTable::HoldingRegisters | ModbusTable::InputRegisters => byte_count / 2
+        } 
+    };
 
     let expected_byte_count = match table {
         ModbusTable::Coils | ModbusTable::DiscreteInput => {

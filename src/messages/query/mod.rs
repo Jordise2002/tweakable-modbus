@@ -1,5 +1,6 @@
 use super::*;
 use crate::codec::ModbusSerialize;
+
 mod rtu;
 mod rtu_over_tcp;
 mod tcp;

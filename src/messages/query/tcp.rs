@@ -11,16 +11,14 @@ impl ModbusTcpSerialize for ModbusQuery {
 
         let mut data = Cursor::new(data);
 
-        let mut size_left = data.get_ref().len() - data.position() as usize;
+        let mut size_left = data.get_ref().len();
 
         while size_left > 0 {
             let (mut message_data, length) = crate::codec::tcp::deserialize_mbap(&mut data)?;
 
             let mut message_body = vec![0u8; length as usize];
 
-            if let Err(err) = data.read_exact(&mut message_body) {
-                return Err(anyhow!(err));
-            }
+            data.read_exact(&mut message_body)?;
 
             let mut message_body = Cursor::new(message_body);
 
@@ -283,7 +281,7 @@ fn deserialize_multiple_write_query(
 
     let ammount = data.read_u16::<BigEndian>()?;
 
-    let values = crate::codec::utils::deserialize_values(table, ammount, &mut data)?;
+    let values = crate::codec::utils::deserialize_values(table, Some(ammount), &mut data)?;
 
     let position = data.position() as usize;
 
@@ -318,7 +316,7 @@ fn deserialize_multiple_read_write_query(
 
     let write_ammount = data.read_u16::<BigEndian>()?;
 
-    let values = crate::codec::utils::deserialize_values(table, write_ammount, &mut data)?;
+    let values = crate::codec::utils::deserialize_values(table, Some(write_ammount), &mut data)?;
 
     let position = data.position() as usize;
 
