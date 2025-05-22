@@ -456,7 +456,7 @@ mod test {
                     table: ModbusTable::Coils,
                     starting_address: 0x33,
                     values: vec![
-                        ModbusDataType::Coil(true),
+                        ModbusDataType::Coil(false),
                         ModbusDataType::Coil(false),
                         ModbusDataType::Coil(true),
                     ],

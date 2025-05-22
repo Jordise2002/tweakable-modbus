@@ -123,7 +123,7 @@ pub fn deserialize_values(
                 aux_byte = aux_byte >> 1;
                 counter += 1;
             }
-
+            values.reverse();
         },
         ModbusTable::HoldingRegisters | ModbusTable::InputRegisters => {
             for _ in 0..ammount {
@@ -132,6 +132,7 @@ pub fn deserialize_values(
             }
         }
     }
+
 
     Ok(values)
 }
