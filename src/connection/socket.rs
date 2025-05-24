@@ -36,4 +36,6 @@ impl ModbusSocket for TcpStream {
             Err(err) => Err(err.to_string()),
         }
     }
+
+    
 }
