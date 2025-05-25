@@ -64,6 +64,7 @@ impl ModbusConnection {
         let time_out = sleep(max_response_time);
         tokio::pin!(time_out);
 
+        let mut stop_listening = false;
         loop {
             tokio::select! {
                 bytes = comm.read() => {
@@ -79,13 +80,17 @@ impl ModbusConnection {
                     
                     if ! self.context.has_on_going_queries()
                     {
-                        break;
+                        stop_listening = true;
                     }
 
                 }
                 _ = & mut time_out => {
-                    break;
+                    stop_listening = true;
                 }
+            };
+
+            if stop_listening {
+                break;
             }
         }
 

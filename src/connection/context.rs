@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     codec::ModbusSerialize,
-    messages::{response::*, ModbusDataType, ModbusQuery, ModbusResponse},
+    messages::{query::*, response::*, ModbusDataType, ModbusQuery, ModbusResponse},
 };
 
 use super::ModbusSubprotocol;
@@ -83,20 +83,24 @@ impl ModbusContext {
                     message_data: _message_data,
                     params: _params,
                 } => {}
-                ModbusResponse::ReadResponse { message_data, params } => {
+                ModbusResponse::ReadResponse {
+                    message_data,
+                    mut params,
+                } => {
                     let query = self.on_going_queries.get(&transaction_id).unwrap();
-                    let mut address = if let ModbusQuery::ReadQuery { message_data, params } = query
-                    {
-                        params.starting_address
-                    }
-                    else {
-                        continue;
-                    };
 
-                    for value in params.values
+                    if let ModbusQuery::ReadQuery {
+                        message_data: _message_data,
+                        params: query_params,
+                    } = query
                     {
-                        address_map.insert(address, value);
-                        address += 1;
+                        params.values.truncate(query_params.ammount as usize);
+                        let mut address = query_params.starting_address;
+
+                        for value in params.values {
+                            address_map.insert(address, value);
+                            address += 1;
+                        }
                     }
                 }
             };
@@ -106,6 +110,6 @@ impl ModbusContext {
     }
 
     pub fn has_on_going_queries(&self) -> bool {
-        return ! self.on_going_queries.is_empty();
+        return !self.on_going_queries.is_empty();
     }
 }

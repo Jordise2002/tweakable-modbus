@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -17,14 +19,17 @@ impl ModbusSocket for TcpStream {
         let mut buffer = [0u8; 1024];
 
         loop {
-            match AsyncReadExt::read(self, &mut buffer).await {
-                Ok(n) => {
+            match tokio::time::timeout(Duration::from_millis(50), AsyncReadExt::read(self, & mut buffer)).await {
+                Ok(Ok(n)) => {
                     data.extend_from_slice(&buffer[..n]);
                     if n == 0 {
                         break;
                     }
                 }
-                Err(err) => return Err(anyhow!(err.to_string())),
+                Ok(Err(err)) => return Err(anyhow!(err.to_string())),
+                Err(_) => {
+                    break;
+                }
             }
         }
 
