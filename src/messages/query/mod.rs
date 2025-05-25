@@ -53,3 +53,26 @@ pub enum ModbusQuery {
 }
 
 impl ModbusSerialize for ModbusQuery {}
+
+impl ModbusQuery {
+    pub fn get_message_data(&self) -> &ModbusMessageData {
+        match self {
+            ModbusQuery::ReadQuery {
+                message_data,
+                params: _params,
+            } => message_data,
+            ModbusQuery::SingleWriteQuery {
+                message_data,
+                params: _params,
+            } => message_data,
+            ModbusQuery::MultipleWriteQuery {
+                message_data,
+                params: _params,
+            } => message_data,
+            ModbusQuery::MultipleReadWriteQuery {
+                message_data,
+                params: _params,
+            } => message_data,
+        }
+    }
+}

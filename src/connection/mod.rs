@@ -1,14 +1,20 @@
-use crate::messages::{FunctionCode, ModbusDataType, ModbusMessageData, ModbusQuery, ModbusTable};
+use crate::messages::{FunctionCode, ModbusDataType, ModbusMessageData, ModbusQuery, ModbusTable, ModbusResponse};
+use crate::codec::ModbusSerialize;
 use communication::ModbusCommunicationInfo;
 use context::ModbusContext;
+use socket::ModbusSocket;
 
 use anyhow::{anyhow, Result};
-use std::{cell::Cell, net::SocketAddr};
+use std::{cell::Cell, collections::HashMap, future::IntoFuture, net::SocketAddr};
+use tokio::time::{sleep, Duration, Instant};
 
 mod communication;
 mod context;
 mod socket;
 
+const MAX_MODBUS_RESPONSE_TIME: Duration = tokio::time::Duration::from_millis(5000);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ModbusSubprotocol {
     ModbusTCP,
     ModbusRTU,
@@ -32,6 +38,64 @@ impl ModbusConnection {
             context,
             subprotocol: ModbusSubprotocol::ModbusTCP,
         }
+    }
+
+    pub async fn query_with_max_time(
+        &mut self,
+        max_response_time: Duration,
+    ) -> Result<HashMap<u16, ModbusDataType>> {
+        self.context.load_queued_queries();
+
+        let all_queries = self.context.serialize_all_queries(self.subprotocol)?;
+
+        if !self.comm.is_connected().await {
+            self.comm.connect().await?;
+        }
+
+        let comm = self
+            .comm
+            .comm
+            .as_mut()
+            .ok_or_else(|| anyhow!("Socket wasn't intialised!"))?;
+
+        comm.write(all_queries).await?;
+
+        let mut results = HashMap::new();
+        let time_out = sleep(max_response_time);
+        tokio::pin!(time_out);
+
+        loop {
+            tokio::select! {
+                bytes = comm.read() => {
+                    if let Err(_) = bytes {
+                        break;
+                    }
+
+                    let bytes = bytes.unwrap();
+
+                    let responses = ModbusResponse::deserialize(bytes, self.subprotocol)?;
+
+                    self.context.process_modbus_responses(responses, & mut results);
+                    
+                    if ! self.context.has_on_going_queries()
+                    {
+                        break;
+                    }
+
+                }
+                _ = & mut time_out => {
+                    break;
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    pub fn query(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<HashMap<u16, ModbusDataType>>> + '_ {
+        self.query_with_max_time(MAX_MODBUS_RESPONSE_TIME)
     }
 
     fn add_read_query(

@@ -41,4 +41,16 @@ impl ModbusCommunicationInfo {
         
         return Err(anyhow!("Couldn't open connection"));
     }
+
+    pub async fn is_connected(& mut self) -> bool
+    {
+        if self.comm.is_none()
+        {
+            return false;
+        }
+
+
+        true
+
+    }
 }

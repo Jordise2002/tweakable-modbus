@@ -1,17 +1,111 @@
+use anyhow::Result;
+use std::cell::Cell;
 use std::collections::HashMap;
 
-use crate::messages::ModbusQuery;
+use crate::{
+    codec::ModbusSerialize,
+    messages::{response::*, ModbusDataType, ModbusQuery, ModbusResponse},
+};
+
+use super::ModbusSubprotocol;
 //This struct is meant to hold the state of the on going modbus communication
 pub struct ModbusContext {
     pub queued_queries: Vec<ModbusQuery>,
     pub on_going_queries: HashMap<u16, ModbusQuery>,
+    current_transaction_id: Cell<u16>,
 }
 
 impl ModbusContext {
     pub fn new() -> Self {
         ModbusContext {
+            current_transaction_id: Cell::new(1),
             queued_queries: Vec::new(),
             on_going_queries: HashMap::new(),
         }
+    }
+
+    fn get_next_free_transaction_id(&self) -> u16 {
+        let result = self.current_transaction_id.get();
+        self.current_transaction_id.set(result + 1);
+        result
+    }
+
+    pub fn load_queued_queries(&mut self) {
+        self.on_going_queries.clear();
+
+        for query in &self.queued_queries {
+            let message_data = query.get_message_data();
+            message_data
+                .transaction_id
+                .set(Some(self.get_next_free_transaction_id()));
+            self.on_going_queries
+                .insert(message_data.transaction_id.get().unwrap(), query.clone());
+        }
+    }
+
+    pub fn serialize_all_queries(&self, subprotocol: ModbusSubprotocol) -> Result<Vec<u8>> {
+        let mut result = vec![];
+
+        for (_transaction_id, query) in &self.on_going_queries {
+            result.extend_from_slice(&query.serialize(subprotocol)?);
+        }
+
+        Ok(result)
+    }
+
+    pub fn process_modbus_responses(
+        &mut self,
+        responses: Vec<ModbusResponse>,
+        address_map: &mut HashMap<u16, ModbusDataType>,
+    ) {
+        for response in responses {
+            let transaction_id = response.get_message_data().transaction_id.get();
+            if let None = transaction_id {
+                continue;
+            }
+
+            let transaction_id = transaction_id.unwrap();
+
+            if !self.on_going_queries.contains_key(&transaction_id) {
+                continue;
+            }
+
+            match response {
+                ModbusResponse::Error {
+                    message_data: _message_data,
+                    exception_code: _exception_code,
+                } => {}
+                ModbusResponse::SingleWriteResponse {
+                    message_data,
+                    params,
+                } => {}
+                ModbusResponse::MultipleWriteResponse {
+                    message_data: _message_data,
+                    params: _params,
+                } => {}
+                ModbusResponse::ReadResponse { message_data, params } => {
+                    let query = self.on_going_queries.get(&transaction_id).unwrap();
+                    let mut address = if let ModbusQuery::ReadQuery { message_data, params } = query
+                    {
+                        params.starting_address
+                    }
+                    else {
+                        continue;
+                    };
+
+                    for value in params.values
+                    {
+                        address_map.insert(address, value);
+                        address += 1;
+                    }
+                }
+            };
+
+            self.on_going_queries.remove(&transaction_id);
+        }
+    }
+
+    pub fn has_on_going_queries(&self) -> bool {
+        return ! self.on_going_queries.is_empty();
     }
 }

@@ -1,17 +1,18 @@
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use anyhow::{anyhow, Result};
 //This trait is meant to abstract both TCP and RTU system sockets in order to unify behaviour
 #[async_trait]
 pub trait ModbusSocket {
-    async fn read(&mut self) -> Result<Vec<u8>, String>;
+    async fn read(&mut self) -> Result<Vec<u8>>;
 
-    async fn write(&mut self, data: Vec<u8>) -> Result<(), String>;
+    async fn write(&mut self, data: Vec<u8>) -> Result<()>;
 }
 
 #[async_trait]
 impl ModbusSocket for TcpStream {
-    async fn read(&mut self) -> Result<Vec<u8>, String> {
+    async fn read(&mut self) -> Result<Vec<u8>> {
         let mut data = Vec::new();
         let mut buffer = [0u8; 1024];
 
@@ -23,17 +24,17 @@ impl ModbusSocket for TcpStream {
                         break;
                     }
                 }
-                Err(err) => return Err(err.to_string()),
+                Err(err) => return Err(anyhow!(err.to_string())),
             }
         }
 
         Ok(data)
     }
 
-    async fn write(&mut self, data: Vec<u8>) -> Result<(), String> {
+    async fn write(&mut self, data: Vec<u8>) -> Result<()> {
         match AsyncWriteExt::write(self, data.as_slice()).await {
             Ok(_) => Ok(()),
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(anyhow!(err.to_string())),
         }
     }
 
