@@ -151,7 +151,7 @@ impl ModbusTcpSerialize for ModbusQuery {
                 multiple_write_query.extend_from_slice(&ammount.to_be_bytes());
 
                 //Values
-                let values = crate::codec::utils::serialize_values(&params.values)?;
+                let values = crate::codec::utils::serialize_values(params.values.clone())?;
                 multiple_write_query.extend_from_slice(&values);
 
                 let mbap = crate::codec::tcp::serialize_mbap(
@@ -187,7 +187,7 @@ impl ModbusTcpSerialize for ModbusQuery {
                 multiple_write_read_query.extend_from_slice(&write_ammount.to_be_bytes());
 
                 //Write values
-                let values = crate::codec::utils::serialize_values(&params.values)?;
+                let values = crate::codec::utils::serialize_values(params.values.clone())?;
                 multiple_write_read_query.extend_from_slice(&values);
 
                 let mbap = crate::codec::tcp::serialize_mbap(
@@ -353,7 +353,6 @@ mod test {
 
         let output = ModbusQuery::deserialize(bytes, ModbusSubprotocol::ModbusTCP).unwrap();
 
-        println!("{:?}", input);
         assert_eq!(input, output);
     }
     #[test]

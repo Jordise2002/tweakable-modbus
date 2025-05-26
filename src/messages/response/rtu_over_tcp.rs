@@ -4,7 +4,7 @@ use super::*;
 
 impl ModbusRtuOverTcpSerialize for ModbusResponse
 {
-    fn rtu_over_tcp_deserialize(data: Vec<u8>) -> Result<Vec<Self>> {
+    fn rtu_over_tcp_deserialize(_data: Vec<u8>) -> Result<Vec<Self>> {
         Err(anyhow!("Not implemented!"))   
     }
 

@@ -48,7 +48,7 @@ pub fn deserialize_mbap(data: &mut Cursor<Vec<u8>>) -> Result<(ModbusMessageData
 
     let transaction_id = data.read_u16::<BigEndian>()?;
 
-    let protocol_id = data.read_u16::<BigEndian>()?;
+    let _protocol_id = data.read_u16::<BigEndian>()?;
 
     let length = data.read_u16::<BigEndian>()?;
 

@@ -4,10 +4,11 @@ use std::collections::HashMap;
 
 use crate::{
     codec::ModbusSerialize,
-    messages::{query::*, response::*, ModbusDataType, ModbusQuery, ModbusResponse},
+    connection::ModbusResult,
+    messages::{ModbusQuery, ModbusResponse, ModbusTable},
 };
 
-use super::ModbusSubprotocol;
+use super::{ModbusAddress, ModbusSubprotocol};
 //This struct is meant to hold the state of the on going modbus communication
 pub struct ModbusContext {
     pub queued_queries: Vec<ModbusQuery>,
@@ -56,7 +57,7 @@ impl ModbusContext {
     pub fn process_modbus_responses(
         &mut self,
         responses: Vec<ModbusResponse>,
-        address_map: &mut HashMap<u16, ModbusDataType>,
+        address_map: &mut HashMap<ModbusAddress, ModbusResult>,
     ) {
         for response in responses {
             let transaction_id = response.get_message_data().transaction_id.get();
@@ -73,22 +74,106 @@ impl ModbusContext {
             match response {
                 ModbusResponse::Error {
                     message_data: _message_data,
-                    exception_code: _exception_code,
-                } => {}
+                    exception_code,
+                } => {
+                    let query = self.on_going_queries.get(&transaction_id).unwrap();
+
+                    match query {
+                        ModbusQuery::ReadQuery {
+                            message_data,
+                            params,
+                        } => {
+                            for address in
+                                params.starting_address..params.starting_address + params.ammount
+                            {
+                                let table = ModbusTable::get_table_from_function_code(
+                                    message_data.function_code,
+                                )
+                                .unwrap();
+                                address_map.insert(
+                                    ModbusAddress { table, address },
+                                    ModbusResult::Error(exception_code),
+                                );
+                            }
+                        }
+                        ModbusQuery::SingleWriteQuery {
+                            message_data,
+                            params,
+                        } => {
+                            let table = ModbusTable::get_table_from_function_code(
+                                message_data.function_code,
+                            )
+                            .unwrap();
+                            address_map.insert(
+                                ModbusAddress {
+                                    table,
+                                    address: params.starting_address,
+                                },
+                                ModbusResult::Error(exception_code),
+                            );
+                        }
+                        ModbusQuery::MultipleWriteQuery {
+                            message_data,
+                            params,
+                        } => {
+                            let table = ModbusTable::get_table_from_function_code(
+                                message_data.function_code,
+                            )
+                            .unwrap();
+                            for address in params.starting_address
+                                ..params.starting_address + params.values.len() as u16
+                            {
+                                address_map.insert(
+                                    ModbusAddress {
+                                        table,
+                                        address,
+                                    },
+                                    ModbusResult::Error(exception_code),
+                                );
+                            }
+                        }
+                        ModbusQuery::MultipleReadWriteQuery {
+                            message_data,
+                            params,
+                        } => {
+                            let table = ModbusTable::get_table_from_function_code(message_data.function_code).unwrap();
+                            for address in params.read_starting_address
+                                ..params.read_starting_address + params.read_ammount
+                            {
+                                address_map.insert(ModbusAddress { table, address}, ModbusResult::Error(exception_code));
+                            }
+
+                            for address in params.write_starting_address
+                                ..params.write_starting_address + params.values.len() as u16
+                            {
+                                address_map.insert(ModbusAddress { table, address}, ModbusResult::Error(exception_code));
+                            }
+                        }
+                    }
+                }
                 ModbusResponse::SingleWriteResponse {
                     message_data,
                     params,
-                } => {}
+                } => {
+                    let table = ModbusTable::get_table_from_function_code(message_data.function_code).unwrap();
+                    address_map.insert(ModbusAddress { table, address: params.address}, ModbusResult::WriteConfirmation);
+                }
                 ModbusResponse::MultipleWriteResponse {
-                    message_data: _message_data,
-                    params: _params,
-                } => {}
+                    message_data,
+                    params,
+                } => {
+                    let table = ModbusTable::get_table_from_function_code(message_data.function_code).unwrap();
+                    for address in params.address..params.address + params.ammount {
+                        address_map.insert(ModbusAddress { table, address }, ModbusResult::WriteConfirmation);
+                    }
+                }
                 ModbusResponse::ReadResponse {
                     message_data,
                     mut params,
                 } => {
                     let query = self.on_going_queries.get(&transaction_id).unwrap();
 
+                    let table = ModbusTable::get_table_from_function_code(message_data.function_code).unwrap();
                     if let ModbusQuery::ReadQuery {
                         message_data: _message_data,
                         params: query_params,
@@ -98,7 +183,7 @@ impl ModbusContext {
                         let mut address = query_params.starting_address;
 
                         for value in params.values {
-                            address_map.insert(address, value);
+                            address_map.insert(ModbusAddress { table, address }, ModbusResult::ReadResult(value));
                             address += 1;
                         }
                     }

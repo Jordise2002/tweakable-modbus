@@ -1,15 +1,14 @@
 use crate::messages::{ModbusDataType, ModbusTable};
 
 use anyhow::{anyhow, Result};
-use tokio::time::error::Elapsed;
 use std::mem::discriminant;
 use std::io::{Cursor};
 use byteorder::{BigEndian, ReadBytesExt};
 
-pub fn serialize_values(values: &Vec<ModbusDataType>) -> Result<Vec<u8>> {
+pub fn serialize_values(mut values: Vec<ModbusDataType>) -> Result<Vec<u8>> {
     let mut result = Vec::new();
 
-    if !check_same_data_type_variant(values) {
+    if !check_same_data_type_variant(&values) {
         return Err(anyhow!("All values in a query must have the same type",));
     }
 
@@ -17,10 +16,12 @@ pub fn serialize_values(values: &Vec<ModbusDataType>) -> Result<Vec<u8>> {
         return Err(anyhow!("At least one value must be sent"));
     }
 
+
     let first_value = values.first().ok_or_else(|| anyhow!("No first value"))?;
 
     match first_value {
         ModbusDataType::Coil(_) => {
+            values.reverse();
             let length = if values.len() % 8 == 0 {
                 values.len() as u8 / 8
             } else {
@@ -35,7 +36,7 @@ pub fn serialize_values(values: &Vec<ModbusDataType>) -> Result<Vec<u8>> {
             for value in values {
                 if let ModbusDataType::Coil(value) = value {
                     aux_byte = aux_byte << 1;
-                    if *value {
+                    if value {
                         aux_byte = aux_byte | 0b1;
                     }
 
@@ -123,7 +124,6 @@ pub fn deserialize_values(
                 aux_byte = aux_byte >> 1;
                 counter += 1;
             }
-            values.reverse();
         },
         ModbusTable::HoldingRegisters | ModbusTable::InputRegisters => {
             for _ in 0..ammount {

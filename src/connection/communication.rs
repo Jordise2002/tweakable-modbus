@@ -5,6 +5,7 @@ use crate::connection::socket::ModbusSocket;
 use anyhow::{anyhow, Result};
 pub enum AddressingInfo {
     TcpConnection { address: SocketAddr },
+    #[allow(dead_code)]
     RtuConnection { device: String, baud_rate: u32 },
 }
 
@@ -21,6 +22,7 @@ impl ModbusCommunicationInfo {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_rtu(device: String, baud_rate: u32) -> Self {
         ModbusCommunicationInfo {
             comm: None,

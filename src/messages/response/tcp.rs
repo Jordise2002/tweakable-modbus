@@ -1,4 +1,4 @@
-use std::{fs::read, io::Read, os::linux::raw};
+use std::io::Read;
 
 use crate::codec::tcp::ModbusTcpSerialize;
 
@@ -81,7 +81,7 @@ impl ModbusTcpSerialize for ModbusResponse {
 
                 read_response.push(message_data.function_code as u8);
 
-                let values = crate::codec::utils::serialize_values(&params.values)?;
+                let values = crate::codec::utils::serialize_values(params.values.clone())?;
 
                 read_response.extend_from_slice(&values);
 
@@ -153,7 +153,6 @@ impl ModbusTcpSerialize for ModbusResponse {
                 result.extend_from_slice(&mbap);
                 result.extend_from_slice(&error_response);
             }
-            _ => {}
         };
         Ok(result)
     }
@@ -257,7 +256,6 @@ mod test {
 
         let output = ModbusResponse::deserialize(bytes, ModbusSubprotocol::ModbusTCP).unwrap();
 
-        println!("{:?}", input);
         assert_eq!(input, output);
     }
 

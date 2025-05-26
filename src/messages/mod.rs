@@ -5,7 +5,7 @@ use std::cell::Cell;
 pub mod query;
 pub mod response;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
 pub enum ModbusTable {
     DiscreteInput,
     Coils,

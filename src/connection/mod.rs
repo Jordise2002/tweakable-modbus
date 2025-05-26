@@ -1,12 +1,11 @@
-use crate::messages::{FunctionCode, ModbusDataType, ModbusMessageData, ModbusQuery, ModbusTable, ModbusResponse};
+use crate::messages::{ExceptionCode, FunctionCode, ModbusDataType, ModbusMessageData, ModbusQuery, ModbusResponse, ModbusTable};
 use crate::codec::ModbusSerialize;
 use communication::ModbusCommunicationInfo;
 use context::ModbusContext;
-use socket::ModbusSocket;
 
 use anyhow::{anyhow, Result};
-use std::{cell::Cell, collections::HashMap, future::IntoFuture, net::SocketAddr};
-use tokio::time::{sleep, Duration, Instant};
+use std::{cell::Cell, collections::HashMap, net::SocketAddr};
+use tokio::time::{sleep, Duration};
 
 mod communication;
 mod context;
@@ -14,11 +13,25 @@ mod socket;
 
 const MAX_MODBUS_RESPONSE_TIME: Duration = tokio::time::Duration::from_millis(5000);
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ModbusSubprotocol {
     ModbusTCP,
     ModbusRTU,
     ModbusRTUOverTCP,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ModbusResult {
+    Error(ExceptionCode),
+    ReadResult(ModbusDataType),
+    WriteConfirmation
+}
+
+#[derive(Clone,Debug, PartialEq, Eq, Hash)]
+pub struct ModbusAddress {
+    pub table: ModbusTable,
+    pub address: u16
 }
 
 pub struct ModbusConnection {
@@ -43,7 +56,7 @@ impl ModbusConnection {
     pub async fn query_with_max_time(
         &mut self,
         max_response_time: Duration,
-    ) -> Result<HashMap<u16, ModbusDataType>> {
+    ) -> Result<HashMap<ModbusAddress, ModbusResult>> {
         self.context.load_queued_queries();
 
         let all_queries = self.context.serialize_all_queries(self.subprotocol)?;
@@ -99,7 +112,7 @@ impl ModbusConnection {
 
     pub fn query(
         &mut self,
-    ) -> impl std::future::Future<Output = Result<HashMap<u16, ModbusDataType>>> + '_ {
+    ) -> impl std::future::Future<Output = Result<HashMap<ModbusAddress, ModbusResult>>> + '_ {
         self.query_with_max_time(MAX_MODBUS_RESPONSE_TIME)
     }
 
