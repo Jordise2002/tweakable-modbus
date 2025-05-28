@@ -3,8 +3,8 @@ use std::io::Read;
 use crate::codec::tcp::ModbusTcpSerialize;
 
 use super::*;
-use anyhow::Result;
 use byteorder::{BigEndian, ReadBytesExt};
+use anyhow::{anyhow, Result};
 
 impl ModbusTcpSerialize for ModbusResponse {
     fn tcp_deserialize(data: Vec<u8>) -> Result<Vec<Self>> {
@@ -245,7 +245,10 @@ fn deserialize_multiple_write_response(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::connection::ModbusSubprotocol;
+    use crate::common::ModbusSubprotocol;
+    use crate::messages::response;
+
+    use std::cell::Cell;
 
     fn test_response_serialization(input: Vec<ModbusResponse>) {
         let mut bytes = vec![];

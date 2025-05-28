@@ -9,7 +9,7 @@ use tcp::ModbusTcpSerialize;
 
 use anyhow::Result;
 
-use crate::connection::ModbusSubprotocol;
+use crate::common::ModbusSubprotocol;
 
 pub trait ModbusSerialize:
     ModbusRtuOverTcpSerialize + ModbusTcpSerialize + ModbusRtuSerialize

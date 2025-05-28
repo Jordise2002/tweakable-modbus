@@ -1,4 +1,4 @@
-use crate::messages::{ModbusDataType, ModbusTable};
+use crate::common::{ModbusDataType, ModbusTable};
 
 use anyhow::{anyhow, Result};
 use std::mem::discriminant;

@@ -4,11 +4,12 @@ use std::collections::HashMap;
 
 use crate::{
     codec::ModbusSerialize,
-    connection::ModbusResult,
-    messages::{ModbusQuery, ModbusResponse, ModbusTable},
+    common::{ModbusResult,ModbusAddress, ModbusSubprotocol},
+    messages::{ModbusQuery, ModbusResponse},
 };
 
-use super::{ModbusAddress, ModbusSubprotocol};
+use crate::common::ModbusTable;
+
 //This struct is meant to hold the state of the on going modbus communication
 pub struct ModbusContext {
     pub queued_queries: Vec<ModbusQuery>,
@@ -31,10 +32,15 @@ impl ModbusContext {
         result
     }
 
-    pub fn load_queued_queries(&mut self) {
+    pub fn load_queued_queries(&mut self, ammount: u32) {
         self.on_going_queries.clear();
 
-        for query in &self.queued_queries {
+        for _index in 0..ammount {
+            if self.queued_queries.is_empty()
+            {
+                break;
+            }
+            let query = self.queued_queries.pop().unwrap();
             let message_data = query.get_message_data();
             message_data
                 .transaction_id
@@ -44,7 +50,7 @@ impl ModbusContext {
         }
     }
 
-    pub fn serialize_all_queries(&self, subprotocol: ModbusSubprotocol) -> Result<Vec<u8>> {
+    pub fn serialize_queries(&self, subprotocol: ModbusSubprotocol) -> Result<Vec<u8>> {
         let mut result = vec![];
 
         for (_transaction_id, query) in &self.on_going_queries {

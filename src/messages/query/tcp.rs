@@ -340,9 +340,12 @@ fn deserialize_multiple_read_write_query(
 
 #[cfg(test)]
 mod test {
-    use crate::connection::ModbusSubprotocol;
+    use crate::common::ModbusSubprotocol;
+    use crate::messages::query;
 
     use super::*;
+
+    use std::cell::Cell;
 
     fn test_queries_serialization(input: Vec<ModbusQuery>) {
         let mut bytes = vec![];
@@ -386,7 +389,7 @@ mod test {
                 message_data: ModbusMessageData {
                     slave_id: 1,
                     function_code: FunctionCode::ReadMultipleHoldingRegister,
-                    transaction_id: Cell::new(Some(1),)
+                    transaction_id: Cell::new(Some(1)),
                 },
                 params: query::ReadQueryParameters {
                     table: ModbusTable::HoldingRegisters,
@@ -489,13 +492,12 @@ mod test {
                 function_code: FunctionCode::ReadWriteMultipleRegisters,
                 transaction_id: Cell::new(Some(83)),
             },
-            params: query::MultipleReadWriteQueryParameters{
+            params: query::MultipleReadWriteQueryParameters {
                 read_starting_address: 0,
                 read_ammount: 300,
                 table: ModbusTable::HoldingRegisters,
                 write_starting_address: 0,
-                values: vec![ModbusDataType::Register(33),
-                ModbusDataType::Register(22)]
+                values: vec![ModbusDataType::Register(33), ModbusDataType::Register(22)],
             },
         }];
         test_queries_serialization(input);

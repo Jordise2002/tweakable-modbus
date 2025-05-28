@@ -1,5 +1,7 @@
-use super::*;
+use crate::messages::ModbusQuery;
 use crate::codec::rtu_over_tcp::ModbusRtuOverTcpSerialize;
+
+use anyhow::{Result, anyhow};
 
 impl ModbusRtuOverTcpSerialize for ModbusQuery {
     fn rtu_over_tcp_deserialize(_data: Vec<u8>) -> Result<Vec<Self>> {

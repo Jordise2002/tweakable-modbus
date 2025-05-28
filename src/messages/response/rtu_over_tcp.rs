@@ -1,6 +1,7 @@
+use crate::messages::ModbusResponse;
 use crate::codec::rtu_over_tcp::ModbusRtuOverTcpSerialize;
 
-use super::*;
+use anyhow::{Result, anyhow};
 
 impl ModbusRtuOverTcpSerialize for ModbusResponse
 {

@@ -1,4 +1,5 @@
-use super::*;
+use crate::common::{ModbusDataType, ModbusTable};
+use crate::messages::{FunctionCode, ExceptionCode, ModbusMessageData};
 use crate::codec::ModbusSerialize;
 
 mod rtu;

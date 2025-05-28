@@ -1,7 +1,8 @@
 use std::{net::{SocketAddr}};
 use tokio::net::TcpStream;
-use crate::connection::socket::ModbusSocket;
+use socket::ModbusSocket;
 
+mod socket;
 use anyhow::{anyhow, Result};
 pub enum AddressingInfo {
     TcpConnection { address: SocketAddr },

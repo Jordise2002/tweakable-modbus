@@ -1,119 +1,109 @@
-use crate::messages::{ExceptionCode, FunctionCode, ModbusDataType, ModbusMessageData, ModbusQuery, ModbusResponse, ModbusTable};
 use crate::codec::ModbusSerialize;
-use communication::ModbusCommunicationInfo;
+use crate::common::{ModbusAddress, ModbusDataType, ModbusSubprotocol, ModbusTable, ModbusResult};
+use crate::communication::ModbusCommunicationInfo;
+use crate::messages::{FunctionCode, ModbusMessageData, ModbusQuery, ModbusResponse};
 use context::ModbusContext;
 
 use anyhow::{anyhow, Result};
 use std::{cell::Cell, collections::HashMap, net::SocketAddr};
 use tokio::time::{sleep, Duration};
 
-mod communication;
 mod context;
-mod socket;
 
 const MAX_MODBUS_RESPONSE_TIME: Duration = tokio::time::Duration::from_millis(5000);
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ModbusSubprotocol {
-    ModbusTCP,
-    ModbusRTU,
-    ModbusRTUOverTCP,
+pub struct ModbusMasterConnectionParams {
+    pub max_response_time: Duration,
+    pub max_simultaneous_transactions: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum ModbusResult {
-    Error(ExceptionCode),
-    ReadResult(ModbusDataType),
-    WriteConfirmation
-}
-
-#[derive(Clone,Debug, PartialEq, Eq, Hash)]
-pub struct ModbusAddress {
-    pub table: ModbusTable,
-    pub address: u16
-}
-
-pub struct ModbusConnection {
+pub struct ModbusMasterConnection {
     comm: ModbusCommunicationInfo,
     context: ModbusContext,
     subprotocol: ModbusSubprotocol,
 }
 
-impl ModbusConnection {
+impl ModbusMasterConnection {
     pub fn new_tcp(address: SocketAddr) -> Self {
         let comm = ModbusCommunicationInfo::new_tcp(address);
 
         let context = ModbusContext::new();
 
-        ModbusConnection {
+        ModbusMasterConnection {
             comm,
             context,
             subprotocol: ModbusSubprotocol::ModbusTCP,
         }
     }
 
-    pub async fn query_with_max_time(
+    pub async fn query_with_params(
         &mut self,
-        max_response_time: Duration,
+        params: ModbusMasterConnectionParams,
     ) -> Result<HashMap<ModbusAddress, ModbusResult>> {
-        self.context.load_queued_queries();
-
-        let all_queries = self.context.serialize_all_queries(self.subprotocol)?;
-
-        if !self.comm.is_connected().await {
-            self.comm.connect().await?;
-        }
-
-        let comm = self
-            .comm
-            .comm
-            .as_mut()
-            .ok_or_else(|| anyhow!("Socket wasn't intialised!"))?;
-
-        comm.write(all_queries).await?;
-
         let mut results = HashMap::new();
-        let time_out = sleep(max_response_time);
-        tokio::pin!(time_out);
+        while !self.context.queued_queries.is_empty() {
+            self.context
+                .load_queued_queries(params.max_simultaneous_transactions);
 
-        let mut stop_listening = false;
-        loop {
-            tokio::select! {
-                bytes = comm.read() => {
-                    if let Err(_) = bytes {
-                        break;
+            let all_queries = self.context.serialize_queries(self.subprotocol)?;
+
+            if !self.comm.is_connected().await {
+                self.comm.connect().await?;
+            }
+
+            let comm = self
+                .comm
+                .comm
+                .as_mut()
+                .ok_or_else(|| anyhow!("Socket wasn't intialised!"))?;
+
+            comm.write(all_queries).await?;
+
+            let time_out = sleep(params.max_response_time);
+            tokio::pin!(time_out);
+
+            let mut stop_listening = false;
+            loop {
+                tokio::select! {
+                    bytes = comm.read() => {
+                        if let Err(_) = bytes {
+                            break;
+                        }
+
+                        let bytes = bytes.unwrap();
+
+                        let responses = ModbusResponse::deserialize(bytes, self.subprotocol)?;
+
+                        self.context.process_modbus_responses(responses, & mut results);
+
+                        if ! self.context.has_on_going_queries()
+                        {
+                            stop_listening = true;
+                        }
+
                     }
-
-                    let bytes = bytes.unwrap();
-
-                    let responses = ModbusResponse::deserialize(bytes, self.subprotocol)?;
-
-                    self.context.process_modbus_responses(responses, & mut results);
-                    
-                    if ! self.context.has_on_going_queries()
-                    {
+                    _ = & mut time_out => {
                         stop_listening = true;
                     }
+                };
 
+                if stop_listening {
+                    break;
                 }
-                _ = & mut time_out => {
-                    stop_listening = true;
-                }
-            };
-
-            if stop_listening {
-                break;
             }
         }
-
         Ok(results)
     }
 
     pub fn query(
         &mut self,
     ) -> impl std::future::Future<Output = Result<HashMap<ModbusAddress, ModbusResult>>> + '_ {
-        self.query_with_max_time(MAX_MODBUS_RESPONSE_TIME)
+        let params = ModbusMasterConnectionParams {
+            max_response_time: MAX_MODBUS_RESPONSE_TIME,
+            max_simultaneous_transactions: 1,
+        };
+        self.query_with_params(params)
     }
 
     fn add_read_query(
