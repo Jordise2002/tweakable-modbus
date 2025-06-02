@@ -1,14 +1,15 @@
 use crate::codec::ModbusSerialize;
 use crate::common::{ModbusAddress, ModbusDataType, ModbusSubprotocol, ModbusTable, ModbusResult};
-use crate::communication::ModbusCommunicationInfo;
+use crate::master::comm::ModbusMasterCommunicationInfo;
 use crate::messages::{FunctionCode, ModbusMessageData, ModbusQuery, ModbusResponse};
-use context::ModbusContext;
+use context::ModbusMasterContext;
 
 use anyhow::{anyhow, Result};
 use std::{cell::Cell, collections::HashMap, net::SocketAddr};
 use tokio::time::{sleep, Duration};
 
 mod context;
+mod comm;
 
 const MAX_MODBUS_RESPONSE_TIME: Duration = tokio::time::Duration::from_millis(5000);
 
@@ -19,16 +20,16 @@ pub struct ModbusMasterConnectionParams {
 }
 
 pub struct ModbusMasterConnection {
-    comm: ModbusCommunicationInfo,
-    context: ModbusContext,
+    comm: ModbusMasterCommunicationInfo,
+    context: ModbusMasterContext,
     subprotocol: ModbusSubprotocol,
 }
 
 impl ModbusMasterConnection {
     pub fn new_tcp(address: SocketAddr) -> Self {
-        let comm = ModbusCommunicationInfo::new_tcp(address);
+        let comm = ModbusMasterCommunicationInfo::new_tcp(address);
 
-        let context = ModbusContext::new();
+        let context = ModbusMasterContext::new();
 
         ModbusMasterConnection {
             comm,

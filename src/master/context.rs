@@ -11,15 +11,15 @@ use crate::{
 use crate::common::ModbusTable;
 
 //This struct is meant to hold the state of the on going modbus communication
-pub struct ModbusContext {
+pub struct ModbusMasterContext {
     pub queued_queries: Vec<ModbusQuery>,
     pub on_going_queries: HashMap<u16, ModbusQuery>,
     current_transaction_id: Cell<u16>,
 }
 
-impl ModbusContext {
+impl ModbusMasterContext {
     pub fn new() -> Self {
-        ModbusContext {
+        ModbusMasterContext {
             current_transaction_id: Cell::new(1),
             queued_queries: Vec::new(),
             on_going_queries: HashMap::new(),

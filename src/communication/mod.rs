@@ -1,59 +1,58 @@
-use std::{net::{SocketAddr}};
-use tokio::net::TcpStream;
-use socket::ModbusSocket;
+use std::time::Duration;
 
-mod socket;
 use anyhow::{anyhow, Result};
+use std::net::SocketAddr;
+use async_trait::async_trait;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpStream};
+
 pub enum AddressingInfo {
     TcpConnection { address: SocketAddr },
     #[allow(dead_code)]
     RtuConnection { device: String, baud_rate: u32 },
 }
 
-pub struct ModbusCommunicationInfo {
-    pub comm: Option<Box<dyn ModbusSocket>>,
-    addressing_info: AddressingInfo,
+//This trait is meant to abstract both TCP and RTU system sockets in order to unify behaviour
+#[async_trait]
+pub trait ModbusSocket {
+    async fn read(&mut self) -> Result<Vec<u8>>;
+
+    async fn write(&mut self, data: Vec<u8>) -> Result<()>;
 }
 
-impl ModbusCommunicationInfo {
-    pub fn new_tcp(address: SocketAddr) -> Self {
-        ModbusCommunicationInfo {
-            comm: None,
-            addressing_info: AddressingInfo::TcpConnection { address },
-        }
-    }
+#[async_trait]
+impl ModbusSocket for TcpStream {
+    async fn read(&mut self) -> Result<Vec<u8>> {
+        let mut data = Vec::new();
+        let mut buffer = [0u8; 1024];
 
-    #[allow(dead_code)]
-    pub fn new_rtu(device: String, baud_rate: u32) -> Self {
-        ModbusCommunicationInfo {
-            comm: None,
-            addressing_info: AddressingInfo::RtuConnection { device, baud_rate },
-        }
-    }
-
-    pub async fn connect(&mut self) -> Result<()> {
- 
-        if let AddressingInfo::TcpConnection { address } = &self.addressing_info {
-            let stream = TcpStream::connect(address).await;
-            if let Ok(stream) = stream
+        loop {
+            match tokio::time::timeout(
+                Duration::from_millis(50),
+                AsyncReadExt::read(self, &mut buffer),
+            )
+            .await
             {
-                self.comm = Some(Box::new(stream));
-                return Ok(());
+                Ok(Ok(n)) => {
+                    data.extend_from_slice(&buffer[..n]);
+                    if n == 0 {
+                        break;
+                    }
+                }
+                Ok(Err(err)) => return Err(anyhow!(err.to_string())),
+                Err(_) => {
+                    break;
+                }
             }
         }
-        
-        return Err(anyhow!("Couldn't open connection"));
+
+        Ok(data)
     }
 
-    pub async fn is_connected(& mut self) -> bool
-    {
-        if self.comm.is_none()
-        {
-            return false;
+    async fn write(&mut self, data: Vec<u8>) -> Result<()> {
+        match AsyncWriteExt::write(self, data.as_slice()).await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(anyhow!(err.to_string())),
         }
-
-
-        true
-
     }
 }

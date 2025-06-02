@@ -2,6 +2,10 @@ use crate::messages::{FunctionCode, ExceptionCode};
 
 use anyhow::{Result, anyhow};
 
+//TODO: Ensure this types are use through the code base
+pub type Address = u16;
+pub type SlaveId = u8;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ModbusDataType {
     Coil(bool),
@@ -50,7 +54,7 @@ pub enum ModbusResult {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ModbusAddress {
     pub table: ModbusTable,
-    pub address: u16,
+    pub address: Address,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
