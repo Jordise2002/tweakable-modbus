@@ -8,39 +8,49 @@ use crate::{
     },
     slave::comm::ModbusSlaveCommunicationInfo,
 };
-use anyhow::{anyhow, Result};
-use std::collections::HashSet;
-use std::net::SocketAddr;
+use anyhow::Result;
+use std::net::{IpAddr, SocketAddr};
+use std::{collections::HashSet, time::Duration};
 use tokio::net::TcpStream;
 
 mod comm;
 
-type OnReadFunction = Box<dyn Fn(SlaveId, ModbusAddress) -> Option<ModbusDataType>>;
-type OnWriteFunction = Box<dyn Fn(SlaveId, ModbusAddress, ModbusDataType) -> bool>;
+type OnReadFunction = Box<
+    dyn Fn(SlaveId, ModbusAddress) -> std::result::Result<ModbusDataType, ExceptionCode>
+        + Send
+        + Sync,
+>;
+type OnWriteFunction = Box<
+    dyn Fn(SlaveId, ModbusAddress, ModbusDataType) -> std::result::Result<(), ExceptionCode>
+        + Send
+        + Sync,
+>;
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ModbusSlaveConnectionParameters {
+    pub allowed_slaves: Option<HashSet<SlaveId>>,
+    pub allowed_ip_address: Option<HashSet<IpAddr>>,
+    pub connection_time_to_live: Duration,
+}
+
 pub struct ModbusSlaveConnection {
     comm: ModbusSlaveCommunicationInfo,
-    allowed_slaves: HashSet<SlaveId>,
     on_read: OnReadFunction,
     on_write: OnWriteFunction,
 }
 
 impl ModbusSlaveConnection {
     pub fn new_tcp(
-        &mut self,
         address: SocketAddr,
         on_read: OnReadFunction,
-        on_write: OnWriteFunction,
-        allowed_slaves: Vec<SlaveId>,
+        on_write: OnWriteFunction
     ) -> Self {
         let comm = ModbusSlaveCommunicationInfo::new_tcp(address);
-
-        let allowed_slaves: HashSet<SlaveId> = allowed_slaves.into_iter().collect();
 
         ModbusSlaveConnection {
             comm,
             on_read,
-            on_write,
-            allowed_slaves,
+            on_write
         }
     }
 
@@ -55,7 +65,14 @@ impl ModbusSlaveConnection {
                     address: params.starting_address,
                 };
 
-                let _result = (self.on_write)(message_data.slave_id, address, params.value);
+                let result = (self.on_write)(message_data.slave_id, address, params.value);
+
+                if let Err(exception_code) = result {
+                    return Ok(ModbusResponse::Error {
+                        message_data,
+                        exception_code,
+                    });
+                }
 
                 let params = response::SingleWriteResponseParameters {
                     table: params.table,
@@ -79,14 +96,23 @@ impl ModbusSlaveConnection {
                 };
 
                 for value in params.values {
-                    results.push((self.on_write)(message_data.slave_id, address.clone(), value));
+                    let result = (self.on_write)(message_data.slave_id, address.clone(), value);
+
+                    if let Err(exception_code) = result {
+                        return Ok(ModbusResponse::Error {
+                            message_data,
+                            exception_code,
+                        });
+                    }
+
+                    results.push(result.unwrap());
                     address.address += 1;
                 }
 
                 let params = response::MultipleWriteResponse {
                     table: params.table,
                     address: params.starting_address,
-                    ammount: results.iter().filter(|&&b| b).count() as u16,
+                    ammount: results.len() as u16,
                 };
 
                 return Ok(ModbusResponse::MultipleWriteResponse {
@@ -108,10 +134,10 @@ impl ModbusSlaveConnection {
                 for _index in 0..params.ammount {
                     let result = (self.on_read)(message_data.slave_id, address.clone());
 
-                    if result.is_none() {
+                    if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
                             message_data,
-                            exception_code: ExceptionCode::IllegalDataAddress,
+                            exception_code,
                         });
                     }
 
@@ -141,8 +167,17 @@ impl ModbusSlaveConnection {
                 };
 
                 for value in params.values {
-                    let _result =
-                        (self.on_write)(message_data.slave_id, write_starting_address.clone(), value);
+                    let result = (self.on_write)(
+                        message_data.slave_id,
+                        write_starting_address.clone(),
+                        value,
+                    );
+                    if let Err(exception_code) = result {
+                        return Ok(ModbusResponse::Error {
+                            message_data,
+                            exception_code,
+                        });
+                    }
                     write_starting_address.address += 1;
                 }
 
@@ -152,12 +187,13 @@ impl ModbusSlaveConnection {
                 };
 
                 for _index in 0..params.read_ammount {
-                    let result = (self.on_read)(message_data.slave_id, read_starting_address.clone());
+                    let result =
+                        (self.on_read)(message_data.slave_id, read_starting_address.clone());
 
-                    if result.is_none() {
+                    if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
                             message_data,
-                            exception_code: ExceptionCode::IllegalDataAddress,
+                            exception_code,
                         });
                     }
 
@@ -178,43 +214,97 @@ impl ModbusSlaveConnection {
         }
     }
 
-    pub async fn handle_connection(&self, mut socket: TcpStream, addr: SocketAddr) -> Result<()> {
+    pub async fn handle_connection(
+        &self,
+        mut socket: TcpStream,
+        addr: SocketAddr,
+        allowed_slaves: Option<HashSet<SlaveId>>,
+        connection_time_to_live: Duration,
+    ) -> Result<()> {
         loop {
-            let bytes = socket.read().await?;
+            let bytes = match tokio::time::timeout(connection_time_to_live, socket.read()).await {
+                Ok(Ok(bytes)) => bytes,
+                Ok(Err(err)) => {
+                    return Err(err);
+                }
+                Err(_) => {
+                    break;
+                }
+            };
+
+            if bytes.is_empty() {
+                continue;
+            }
 
             let queries =
                 crate::messages::ModbusQuery::deserialize(bytes, ModbusSubprotocol::ModbusTCP)?;
 
             for query in queries {
-                if !self
-                    .allowed_slaves
-                    .contains(&query.get_message_data().slave_id)
+                if allowed_slaves.as_ref().is_some()
+                    && !allowed_slaves
+                        .as_ref()
+                        .unwrap()
+                        .contains(&query.get_message_data().slave_id)
                 {
                     continue;
                 }
 
                 let response = self.handle_query(query)?;
-                socket
-                    .write(response.serialize(ModbusSubprotocol::ModbusTCP)?)
-                    .await;
+                ModbusSocket::write(
+                    &mut socket,
+                    response.serialize(ModbusSubprotocol::ModbusTCP)?,
+                )
+                .await?;
             }
         }
 
         Ok(())
     }
 
-    pub async fn serve(&mut self) -> Result<()> {
+    pub async fn bind(&mut self) -> Result<()> {
         if !self.comm.is_bound() {
             self.comm.bind().await?;
         }
+        Ok(())
+    }
+    pub async fn server_with_parameters(
+        &mut self,
+        params: ModbusSlaveConnectionParameters,
+    ) -> Result<()> {
+        self.bind().await?;
 
-        let listener = self.comm.listener.as_ref().unwrap().clone();
+        let listener = self.comm.listener.as_ref().unwrap();
         loop {
             let (socket, addr) = listener.accept().await?;
 
-            self.handle_connection(socket, addr).await?;
-        }
+            if params.allowed_ip_address.is_some()
+                && ! params
+                    .allowed_ip_address
+                    .as_ref()
+                    .unwrap()
+                    .contains(&addr.ip())
+            {
+                print!("didn't allow {}", addr.ip());
+                continue;
+            }
 
-        Ok(())
+            self.handle_connection(
+                socket,
+                addr,
+                params.allowed_slaves.clone(),
+                params.connection_time_to_live,
+            )
+            .await?;
+        }
+    }
+    
+    pub fn serve(&mut self) -> impl std::future::Future<Output = Result<()>> + '_ {
+        let params = ModbusSlaveConnectionParameters {
+            allowed_ip_address: None,
+            allowed_slaves: None,
+            connection_time_to_live: Duration::from_secs(10),
+        };
+
+        self.server_with_parameters(params)
     }
 }

@@ -20,7 +20,7 @@ impl ModbusSlaveCommunicationInfo {
     {
        if let AddressingInfo::TcpConnection { address } = self.addressing_info {
             self.listener = Some(TcpListener::bind(address).await?);
-
+            return Ok(());
        }
        
        return Err(anyhow!("Rtu is not supported"));

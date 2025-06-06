@@ -1,15 +1,20 @@
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
-use std::net::SocketAddr;
 use async_trait::async_trait;
+use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpStream};
+use tokio::net::TcpStream;
 
 pub enum AddressingInfo {
-    TcpConnection { address: SocketAddr },
+    TcpConnection {
+        address: SocketAddr,
+    },
     #[allow(dead_code)]
-    RtuConnection { device: String, baud_rate: u32 },
+    RtuConnection {
+        device: String,
+        baud_rate: u32,
+    },
 }
 
 //This trait is meant to abstract both TCP and RTU system sockets in order to unify behaviour
