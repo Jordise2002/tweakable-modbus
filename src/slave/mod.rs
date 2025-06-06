@@ -43,14 +43,14 @@ impl ModbusSlaveConnection {
     pub fn new_tcp(
         address: SocketAddr,
         on_read: OnReadFunction,
-        on_write: OnWriteFunction
+        on_write: OnWriteFunction,
     ) -> Self {
         let comm = ModbusSlaveCommunicationInfo::new_tcp(address);
 
         ModbusSlaveConnection {
             comm,
             on_read,
-            on_write
+            on_write,
         }
     }
 
@@ -217,7 +217,6 @@ impl ModbusSlaveConnection {
     pub async fn handle_connection(
         &self,
         mut socket: TcpStream,
-        addr: SocketAddr,
         allowed_slaves: Option<HashSet<SlaveId>>,
         connection_time_to_live: Duration,
     ) -> Result<()> {
@@ -278,26 +277,24 @@ impl ModbusSlaveConnection {
             let (socket, addr) = listener.accept().await?;
 
             if params.allowed_ip_address.is_some()
-                && ! params
+                && !params
                     .allowed_ip_address
                     .as_ref()
                     .unwrap()
                     .contains(&addr.ip())
             {
-                print!("didn't allow {}", addr.ip());
                 continue;
             }
 
             self.handle_connection(
                 socket,
-                addr,
                 params.allowed_slaves.clone(),
                 params.connection_time_to_live,
             )
             .await?;
         }
     }
-    
+
     pub fn serve(&mut self) -> impl std::future::Future<Output = Result<()>> + '_ {
         let params = ModbusSlaveConnectionParameters {
             allowed_ip_address: None,
