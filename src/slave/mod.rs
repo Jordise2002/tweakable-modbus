@@ -9,8 +9,11 @@ use crate::{
     slave::comm::ModbusSlaveCommunicationInfo,
 };
 use anyhow::Result;
-use std::net::{IpAddr, SocketAddr};
 use std::{collections::HashSet, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 use tokio::net::TcpStream;
 
 mod comm;
@@ -28,15 +31,46 @@ type OnWriteFunction = Box<
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ModbusSlaveConnectionParameters {
-    pub allowed_slaves: Option<HashSet<SlaveId>>,
+    pub allowed_slaves: Arc<Option<HashSet<SlaveId>>>,
     pub allowed_ip_address: Option<HashSet<IpAddr>>,
     pub connection_time_to_live: Duration,
 }
 
-pub struct ModbusSlaveConnection {
-    comm: ModbusSlaveCommunicationInfo,
+impl ModbusSlaveConnectionParameters {
+    pub fn new(
+        allowed_slaves: Option<Vec<SlaveId>>,
+        allowed_ip_address: Option<Vec<IpAddr>>,
+        connection_time_to_live: Duration,
+    ) -> Self {
+        let allowed_slaves = match allowed_slaves {
+            Some(allowed_slaves) => Some(allowed_slaves.into_iter().collect::<HashSet<SlaveId>>()),
+            None => None,
+        };
+
+        let allowed_slaves = Arc::new(allowed_slaves);
+
+        let allowed_ip_address = match allowed_ip_address {
+            Some(allowed_ip_address) => {
+                Some(allowed_ip_address.into_iter().collect::<HashSet<IpAddr>>())
+            }
+            None => None,
+        };
+
+        Self {
+            allowed_slaves,
+            allowed_ip_address,
+            connection_time_to_live,
+        }
+    }
+}
+
+pub struct ModbusSlaveConnectionContext {
     on_read: OnReadFunction,
     on_write: OnWriteFunction,
+}
+pub struct ModbusSlaveConnection {
+    comm: ModbusSlaveCommunicationInfo,
+    context: Arc<ModbusSlaveConnectionContext>,
 }
 
 impl ModbusSlaveConnection {
@@ -47,14 +81,15 @@ impl ModbusSlaveConnection {
     ) -> Self {
         let comm = ModbusSlaveCommunicationInfo::new_tcp(address);
 
-        ModbusSlaveConnection {
-            comm,
-            on_read,
-            on_write,
-        }
+        let context = Arc::new(ModbusSlaveConnectionContext { on_read, on_write });
+
+        ModbusSlaveConnection { comm, context }
     }
 
-    pub fn handle_query(&self, query: ModbusQuery) -> Result<ModbusResponse> {
+    pub fn handle_query(
+        context: Arc<ModbusSlaveConnectionContext>,
+        query: ModbusQuery,
+    ) -> Result<ModbusResponse> {
         match query {
             ModbusQuery::SingleWriteQuery {
                 message_data,
@@ -65,7 +100,7 @@ impl ModbusSlaveConnection {
                     address: params.starting_address,
                 };
 
-                let result = (self.on_write)(message_data.slave_id, address, params.value);
+                let result = (context.on_write)(message_data.slave_id, address, params.value);
 
                 if let Err(exception_code) = result {
                     return Ok(ModbusResponse::Error {
@@ -96,7 +131,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for value in params.values {
-                    let result = (self.on_write)(message_data.slave_id, address.clone(), value);
+                    let result = (context.on_write)(message_data.slave_id, address.clone(), value);
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -132,7 +167,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for _index in 0..params.ammount {
-                    let result = (self.on_read)(message_data.slave_id, address.clone());
+                    let result = (context.on_read)(message_data.slave_id, address.clone());
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -167,7 +202,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for value in params.values {
-                    let result = (self.on_write)(
+                    let result = (context.on_write)(
                         message_data.slave_id,
                         write_starting_address.clone(),
                         value,
@@ -188,7 +223,7 @@ impl ModbusSlaveConnection {
 
                 for _index in 0..params.read_ammount {
                     let result =
-                        (self.on_read)(message_data.slave_id, read_starting_address.clone());
+                        (context.on_read)(message_data.slave_id, read_starting_address.clone());
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -215,11 +250,12 @@ impl ModbusSlaveConnection {
     }
 
     pub async fn handle_connection(
-        &self,
+        context: Arc<ModbusSlaveConnectionContext>,
         mut socket: TcpStream,
-        allowed_slaves: Option<HashSet<SlaveId>>,
+        allowed_slaves: Arc<Option<HashSet<SlaveId>>>,
         connection_time_to_live: Duration,
     ) -> Result<()> {
+        print!("hola holita");
         loop {
             let bytes = match tokio::time::timeout(connection_time_to_live, socket.read()).await {
                 Ok(Ok(bytes)) => bytes,
@@ -239,16 +275,13 @@ impl ModbusSlaveConnection {
                 crate::messages::ModbusQuery::deserialize(bytes, ModbusSubprotocol::ModbusTCP)?;
 
             for query in queries {
-                if allowed_slaves.as_ref().is_some()
-                    && !allowed_slaves
-                        .as_ref()
-                        .unwrap()
-                        .contains(&query.get_message_data().slave_id)
-                {
-                    continue;
+                if let Some(allowed_slaves) = allowed_slaves.as_ref() {
+                    if !allowed_slaves.contains(&query.get_message_data().slave_id) {
+                        continue;
+                    }
                 }
 
-                let response = self.handle_query(query)?;
+                let response = Self::handle_query(context.clone(), query)?;
                 ModbusSocket::write(
                     &mut socket,
                     response.serialize(ModbusSubprotocol::ModbusTCP)?,
@@ -276,6 +309,8 @@ impl ModbusSlaveConnection {
         loop {
             let (socket, addr) = listener.accept().await?;
 
+            println!("Hola holita");
+
             if params.allowed_ip_address.is_some()
                 && !params
                     .allowed_ip_address
@@ -286,21 +321,25 @@ impl ModbusSlaveConnection {
                 continue;
             }
 
-            self.handle_connection(
-                socket,
-                params.allowed_slaves.clone(),
-                params.connection_time_to_live,
-            )
-            .await?;
+            let allowed_slaves = params.allowed_slaves.clone();
+            let context = self.context.clone();
+            let connection_time_to_live = params.connection_time_to_live.clone();
+
+            tokio::spawn(async move {
+                ModbusSlaveConnection::handle_connection(
+                    context,
+                    socket,
+                    allowed_slaves,
+                    connection_time_to_live,
+                )
+                .await
+                .unwrap()
+            });
         }
     }
 
     pub fn serve(&mut self) -> impl std::future::Future<Output = Result<()>> + '_ {
-        let params = ModbusSlaveConnectionParameters {
-            allowed_ip_address: None,
-            allowed_slaves: None,
-            connection_time_to_live: Duration::from_secs(10),
-        };
+        let params = ModbusSlaveConnectionParameters::new(None, None, Duration::from_secs(10));
 
         self.server_with_parameters(params)
     }
