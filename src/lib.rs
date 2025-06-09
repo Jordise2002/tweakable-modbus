@@ -11,5 +11,9 @@ pub use master::ModbusMasterConnectionParams;
 pub use slave::ModbusSlaveConnection;
 pub use slave::ModbusSlaveConnectionParameters;
 
+<<<<<<< HEAD
 pub use common::ModbusResult;
 pub use common::ModbusDataType;
+=======
+pub use common::ModbusResult;
+>>>>>>> concurrent-slave
