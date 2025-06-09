@@ -16,7 +16,6 @@ pub use common::ModbusResult;
 #[cfg(test)]
 mod test {
     use std::{
-        collections::HashSet,
         net::{IpAddr, SocketAddr},
         str::FromStr,
         time::Duration,
@@ -36,35 +35,25 @@ mod test {
         });
 
         let on_write = Box::new(|slave_id, address: ModbusAddress, value: ModbusDataType| {
-            print!("adios {} {} {:?}", slave_id, address.address, value);
+            println!("adios {} {} {:?}", slave_id, address.address, value);
             return Ok(());
         });
-
-
 
         let mut slave = ModbusSlaveConnection::new_tcp(slave_address, on_read, on_write);
 
         slave.bind().await.unwrap();
 
-        let mut allowed_slaves = HashSet::new();
+        let allowed_slaves = vec![1];
 
-        allowed_slaves.insert(1);
+        let allowed_ip_address = vec![IpAddr::from_str("127.0.0.1").unwrap()];
 
-        let mut allowed_ip_address = HashSet::new();
-
-        allowed_ip_address.insert(IpAddr::from_str("127.0.0.1").unwrap());
-
-        let handle = tokio::spawn(async move {
-            slave
-                .server_with_parameters(ModbusSlaveConnectionParameters {
-                    allowed_slaves: Some(allowed_slaves),
-                    allowed_ip_address: Some(allowed_ip_address),
-                    connection_time_to_live: Duration::from_secs(10),
-                })
-                .await
-                .unwrap();
-        });
-
-        handle.await;
+        slave
+            .server_with_parameters(ModbusSlaveConnectionParameters::new(
+                Some(allowed_slaves),
+                Some(allowed_ip_address),
+                Duration::from_secs(10),
+            ))
+            .await
+            .unwrap();
     }
 }
