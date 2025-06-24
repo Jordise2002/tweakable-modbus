@@ -1,6 +1,7 @@
-use crate::messages::{FunctionCode, ExceptionCode};
+use crate::messages::{ExceptionCode, FunctionCode};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use std::cmp::{PartialOrd, Ordering};
 
 //TODO: Ensure this types are use through the code base
 pub type Address = u16;
@@ -26,12 +27,14 @@ impl ModbusDataType {
         }
     }
 
-    pub fn coil_from_representation(raw_value: u16) -> Result<Self>
-    {
+    pub fn coil_from_representation(raw_value: u16) -> Result<Self> {
         match raw_value {
             0xFF00 => Ok(ModbusDataType::Coil(true)),
             0x0000 => Ok(ModbusDataType::Coil(false)),
-            _ => Err(anyhow!("{} can be decoded to a coil, only valid values are 0xFF00 and 0x0000", raw_value))
+            _ => Err(anyhow!(
+                "{} can be decoded to a coil, only valid values are 0xFF00 and 0x0000",
+                raw_value
+            )),
         }
     }
 }
@@ -58,12 +61,27 @@ pub struct ModbusAddress {
     pub address: Address,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
+impl Ord for ModbusAddress {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.slave_id
+            .cmp(&other.slave_id)
+            .then_with(|| self.table.cmp(&other.table))
+            .then_with(|| self.address.cmp(&other.address))
+    }
+}
+
+impl PartialOrd for ModbusAddress {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash, PartialOrd, Ord)]
 pub enum ModbusTable {
-    DiscreteInput,
-    Coils,
-    InputRegisters,
-    HoldingRegisters,
+    DiscreteInput = 1,
+    Coils = 2,
+    InputRegisters = 3,
+    HoldingRegisters = 4,
 }
 
 impl ModbusTable {
@@ -82,5 +100,3 @@ impl ModbusTable {
         }
     }
 }
-
-
