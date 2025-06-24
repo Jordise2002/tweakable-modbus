@@ -77,6 +77,8 @@ impl ModbusMasterContext {
                 continue;
             }
 
+            let slave_id = response.get_message_data().slave_id;
+
             match response {
                 ModbusResponse::Error {
                     message_data: _message_data,
@@ -97,7 +99,7 @@ impl ModbusMasterContext {
                                 )
                                 .unwrap();
                                 address_map.insert(
-                                    ModbusAddress { table, address },
+                                    ModbusAddress { table, address, slave_id },
                                     ModbusResult::Error(exception_code),
                                 );
                             }
@@ -112,6 +114,7 @@ impl ModbusMasterContext {
                             .unwrap();
                             address_map.insert(
                                 ModbusAddress {
+                                    slave_id,
                                     table,
                                     address: params.starting_address,
                                 },
@@ -131,6 +134,7 @@ impl ModbusMasterContext {
                             {
                                 address_map.insert(
                                     ModbusAddress {
+                                        slave_id,
                                         table,
                                         address,
                                     },
@@ -146,13 +150,13 @@ impl ModbusMasterContext {
                             for address in params.read_starting_address
                                 ..params.read_starting_address + params.read_ammount
                             {
-                                address_map.insert(ModbusAddress { table, address}, ModbusResult::Error(exception_code));
+                                address_map.insert(ModbusAddress { slave_id,table, address}, ModbusResult::Error(exception_code));
                             }
 
                             for address in params.write_starting_address
                                 ..params.write_starting_address + params.values.len() as u16
                             {
-                                address_map.insert(ModbusAddress { table, address}, ModbusResult::Error(exception_code));
+                                address_map.insert(ModbusAddress { slave_id,table, address}, ModbusResult::Error(exception_code));
                             }
                         }
                     }
@@ -162,7 +166,7 @@ impl ModbusMasterContext {
                     params,
                 } => {
                     let table = ModbusTable::get_table_from_function_code(message_data.function_code).unwrap();
-                    address_map.insert(ModbusAddress { table, address: params.address}, ModbusResult::WriteConfirmation);
+                    address_map.insert(ModbusAddress { slave_id,table, address: params.address}, ModbusResult::WriteConfirmation);
                 }
                 ModbusResponse::MultipleWriteResponse {
                     message_data,
@@ -170,7 +174,7 @@ impl ModbusMasterContext {
                 } => {
                     let table = ModbusTable::get_table_from_function_code(message_data.function_code).unwrap();
                     for address in params.address..params.address + params.ammount {
-                        address_map.insert(ModbusAddress { table, address }, ModbusResult::WriteConfirmation);
+                        address_map.insert(ModbusAddress { slave_id,table, address }, ModbusResult::WriteConfirmation);
                     }
                 }
                 ModbusResponse::ReadResponse {
@@ -187,9 +191,9 @@ impl ModbusMasterContext {
                     {
                         params.values.truncate(query_params.ammount as usize);
                         let mut address = query_params.starting_address;
-
+                        
                         for value in params.values {
-                            address_map.insert(ModbusAddress { table, address }, ModbusResult::ReadResult(value));
+                            address_map.insert(ModbusAddress { slave_id,table, address }, ModbusResult::ReadResult(value));
                             address += 1;
                         }
                     }

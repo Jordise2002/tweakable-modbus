@@ -18,15 +18,10 @@ use tokio::net::TcpStream;
 
 mod comm;
 
-type OnReadFunction = Box<
-    dyn Fn(SlaveId, ModbusAddress) -> std::result::Result<ModbusDataType, ExceptionCode>
-        + Send
-        + Sync,
->;
+type OnReadFunction =
+    Box<dyn Fn(ModbusAddress) -> std::result::Result<ModbusDataType, ExceptionCode> + Send + Sync>;
 type OnWriteFunction = Box<
-    dyn Fn(SlaveId, ModbusAddress, ModbusDataType) -> std::result::Result<(), ExceptionCode>
-        + Send
-        + Sync,
+    dyn Fn(ModbusAddress, ModbusDataType) -> std::result::Result<(), ExceptionCode> + Send + Sync,
 >;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -98,9 +93,10 @@ impl ModbusSlaveConnection {
                 let address = ModbusAddress {
                     table: params.table,
                     address: params.starting_address,
+                    slave_id: message_data.slave_id,
                 };
 
-                let result = (context.on_write)(message_data.slave_id, address, params.value);
+                let result = (context.on_write)(address, params.value);
 
                 if let Err(exception_code) = result {
                     return Ok(ModbusResponse::Error {
@@ -128,10 +124,11 @@ impl ModbusSlaveConnection {
                 let mut address = ModbusAddress {
                     table: params.table,
                     address: params.starting_address,
+                    slave_id: message_data.slave_id,
                 };
 
                 for value in params.values {
-                    let result = (context.on_write)(message_data.slave_id, address.clone(), value);
+                    let result = (context.on_write)(address.clone(), value);
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -164,10 +161,11 @@ impl ModbusSlaveConnection {
                 let mut address = ModbusAddress {
                     table: params.table,
                     address: params.starting_address,
+                    slave_id: message_data.slave_id,
                 };
 
                 for _index in 0..params.ammount {
-                    let result = (context.on_read)(message_data.slave_id, address.clone());
+                    let result = (context.on_read)(address.clone());
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -199,14 +197,11 @@ impl ModbusSlaveConnection {
                 let mut write_starting_address = ModbusAddress {
                     table: params.table,
                     address: params.write_starting_address,
+                    slave_id: message_data.slave_id,
                 };
 
                 for value in params.values {
-                    let result = (context.on_write)(
-                        message_data.slave_id,
-                        write_starting_address.clone(),
-                        value,
-                    );
+                    let result = (context.on_write)(write_starting_address.clone(), value);
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
                             message_data,
@@ -219,11 +214,11 @@ impl ModbusSlaveConnection {
                 let mut read_starting_address = ModbusAddress {
                     table: params.table,
                     address: params.read_starting_address,
+                    slave_id: message_data.slave_id,
                 };
 
                 for _index in 0..params.read_ammount {
-                    let result =
-                        (context.on_read)(message_data.slave_id, read_starting_address.clone());
+                    let result = (context.on_read)(read_starting_address.clone());
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {

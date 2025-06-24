@@ -53,6 +53,7 @@ pub enum ModbusResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ModbusAddress {
+    pub slave_id: SlaveId,
     pub table: ModbusTable,
     pub address: Address,
 }
