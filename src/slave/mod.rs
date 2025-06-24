@@ -250,7 +250,6 @@ impl ModbusSlaveConnection {
         allowed_slaves: Arc<Option<HashSet<SlaveId>>>,
         connection_time_to_live: Duration,
     ) -> Result<()> {
-        print!("hola holita");
         loop {
             let bytes = match tokio::time::timeout(connection_time_to_live, socket.read()).await {
                 Ok(Ok(bytes)) => bytes,
@@ -303,8 +302,6 @@ impl ModbusSlaveConnection {
         let listener = self.comm.listener.as_ref().unwrap();
         loop {
             let (socket, addr) = listener.accept().await?;
-
-            println!("Hola holita");
 
             if params.allowed_ip_address.is_some()
                 && !params
