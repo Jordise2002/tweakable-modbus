@@ -14,3 +14,4 @@ pub use slave::ModbusSlaveConnectionParameters;
 pub use common::ModbusDataType;
 pub use common::ModbusResult;
 pub use common::ModbusTable;
+pub use common::ModbusAddress;
