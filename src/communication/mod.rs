@@ -19,7 +19,7 @@ pub enum AddressingInfo {
 
 //This trait is meant to abstract both TCP and RTU system sockets in order to unify behaviour
 #[async_trait]
-pub trait ModbusSocket {
+pub trait ModbusSocket: Send + Sync {
     async fn read(&mut self) -> Result<Vec<u8>>;
 
     async fn write(&mut self, data: Vec<u8>) -> Result<()>;
