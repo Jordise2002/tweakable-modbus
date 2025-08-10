@@ -1,6 +1,6 @@
-use std::{net::{SocketAddr}};
+use crate::communication::{AddressingInfo, ModbusSocket};
+use std::net::SocketAddr;
 use tokio::net::TcpStream;
-use crate::communication::{ModbusSocket, AddressingInfo};
 
 use anyhow::{anyhow, Result};
 
@@ -26,28 +26,22 @@ impl ModbusMasterCommunicationInfo {
     }
 
     pub async fn connect(&mut self) -> Result<()> {
- 
         if let AddressingInfo::TcpConnection { address } = &self.addressing_info {
             let stream = TcpStream::connect(address).await;
-            if let Ok(stream) = stream
-            {
+            if let Ok(stream) = stream {
                 self.comm = Some(Box::new(stream));
                 return Ok(());
             }
         }
-        
+
         return Err(anyhow!("Couldn't open connection"));
     }
 
-    pub async fn is_connected(& mut self) -> bool
-    {
-        if self.comm.is_none()
-        {
+    pub async fn is_connected(&mut self) -> bool {
+        if self.comm.is_none() {
             return false;
         }
 
-
-        true
-
+        self.comm.as_mut().unwrap().is_open().await
     }
 }
