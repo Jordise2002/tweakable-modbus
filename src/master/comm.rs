@@ -27,16 +27,17 @@ impl ModbusMasterCommunicationInfo {
 
     pub async fn connect(&mut self) -> Result<()> {
         self.comm = None;
-        
+
         if let AddressingInfo::TcpConnection { address } = &self.addressing_info {
             let stream = TcpStream::connect(address).await;
-            if let Ok(stream) = stream {
-                self.comm = Some(Box::new(stream));
-                return Ok(());
+            if let Err(err) = stream {
+                return Err(anyhow!("Tcp connection error: {}", err));
             }
+            self.comm = Some(Box::new(stream.unwrap()));
+            Ok(())
+        } else {
+            Err(anyhow!("Addressing info didn't match tcp protocol"))
         }
-
-        return Err(anyhow!("Couldn't open connection"));
     }
 
     pub async fn is_connected(&mut self) -> bool {
