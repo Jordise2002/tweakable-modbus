@@ -29,12 +29,20 @@ impl ModbusMasterCommunicationInfo {
         self.comm = None;
 
         if let AddressingInfo::TcpConnection { address } = &self.addressing_info {
-            let stream = TcpStream::connect(address).await;
-            if let Err(err) = stream {
-                return Err(anyhow!("Tcp connection error: {}", err));
+            let mut retries = 0;
+            while retries < 3 {
+                let stream = TcpStream::connect(address).await;
+                
+                if let Ok(stream) = stream {
+                    self.comm = Some(Box::new(stream));
+                    return Ok(());
+                }
+
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                
+                retries += 1;
             }
-            self.comm = Some(Box::new(stream.unwrap()));
-            Ok(())
+            Err(anyhow!("Couldn't open connection"))
         } else {
             Err(anyhow!("Addressing info didn't match tcp protocol"))
         }
