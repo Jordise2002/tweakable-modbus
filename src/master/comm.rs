@@ -26,6 +26,8 @@ impl ModbusMasterCommunicationInfo {
     }
 
     pub async fn connect(&mut self) -> Result<()> {
+        self.comm = None;
+        
         if let AddressingInfo::TcpConnection { address } = &self.addressing_info {
             let stream = TcpStream::connect(address).await;
             if let Ok(stream) = stream {
