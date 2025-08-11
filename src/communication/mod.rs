@@ -23,8 +23,6 @@ pub trait ModbusSocket: Send + Sync {
     async fn read(&mut self) -> Result<Vec<u8>>;
 
     async fn write(&mut self, data: Vec<u8>) -> Result<()>;
-
-    async fn is_open(&mut self) -> bool;
 }
 
 #[async_trait]
@@ -60,16 +58,6 @@ impl ModbusSocket for TcpStream {
         match AsyncWriteExt::write(self, data.as_slice()).await {
             Ok(_) => Ok(()),
             Err(err) => Err(anyhow!(err.to_string())),
-        }
-    }
-
-    async fn is_open(&mut self) -> bool {
-        let mut buf = [0u8; 1];
-        match self.peek(&mut buf).await {
-            Ok(0) => false, // conexión cerrada de forma limpia
-            Ok(_) => true,  // hay datos o conexión abierta
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => true, // no hay datos pero sigue viva
-            Err(_) => false, // error real, probablemente cerrada
         }
     }
 }

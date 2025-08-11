@@ -59,7 +59,11 @@ impl ModbusMasterConnection {
                 .as_mut()
                 .ok_or_else(|| anyhow!("Socket wasn't intialised!"))?;
 
-            comm.write(all_queries).await?;
+            let result = comm.write(all_queries).await;
+
+            if result.is_err(){
+                self.comm.has_failed = true;
+            }
 
             let time_out = sleep(params.max_response_time);
             tokio::pin!(time_out);

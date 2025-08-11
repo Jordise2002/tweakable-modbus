@@ -7,6 +7,7 @@ use anyhow::{anyhow, Result};
 pub struct ModbusMasterCommunicationInfo {
     pub comm: Option<Box<dyn ModbusSocket>>,
     addressing_info: AddressingInfo,
+    pub has_failed: bool
 }
 
 impl ModbusMasterCommunicationInfo {
@@ -14,6 +15,7 @@ impl ModbusMasterCommunicationInfo {
         ModbusMasterCommunicationInfo {
             comm: None,
             addressing_info: AddressingInfo::TcpConnection { address },
+            has_failed: false
         }
     }
 
@@ -22,6 +24,7 @@ impl ModbusMasterCommunicationInfo {
         ModbusMasterCommunicationInfo {
             comm: None,
             addressing_info: AddressingInfo::RtuConnection { device, baud_rate },
+            has_failed: false
         }
     }
 
@@ -32,6 +35,7 @@ impl ModbusMasterCommunicationInfo {
             let stream = TcpStream::connect(address).await?;
             stream.set_linger(Some(std::time::Duration::from_secs(0)))?;
             self.comm = Some(Box::new(stream));
+            self.has_failed = false;
             Ok(())
         } else {
             Err(anyhow!("Addressing info didn't match tcp protocol"))
@@ -43,6 +47,6 @@ impl ModbusMasterCommunicationInfo {
             return false;
         }
 
-        self.comm.as_mut().unwrap().is_open().await
+        ! self.has_failed
     }
 }
