@@ -102,7 +102,11 @@ impl ModbusMasterConnection {
                 }
             }
         }
-        Ok(results)
+        if results.is_empty() {
+            Err("No queries got answered")
+        } else {
+            Ok(results)
+        }
     }
 
     pub fn query(
