@@ -37,8 +37,6 @@ impl ModbusMasterCommunicationInfo {
                     self.comm = Some(Box::new(stream));
                     return Ok(());
                 }
-
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                 
                 retries += 1;
             }
