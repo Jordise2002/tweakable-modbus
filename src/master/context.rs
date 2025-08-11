@@ -28,7 +28,12 @@ impl ModbusMasterContext {
 
     fn get_next_free_transaction_id(&self) -> u16 {
         let result = self.current_transaction_id.get();
-        self.current_transaction_id.set(result + 1);
+        if result == u16::MAX {
+            self.current_transaction_id.set(0);
+        } else {
+            self.current_transaction_id.set(result + 1);
+        }
+
         result
     }
 
