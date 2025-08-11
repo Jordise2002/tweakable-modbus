@@ -30,7 +30,7 @@ impl ModbusMasterCommunicationInfo {
 
         if let AddressingInfo::TcpConnection { address } = &self.addressing_info {
             let stream = TcpStream::connect(address).await?;
-            stream.set_linger(std::time::Duration::from_secs(0));
+            stream.set_linger(Some(std::time::Duration::from_secs(0)))?;
             self.comm = Some(Box::new(stream));
             Ok(())
         } else {
