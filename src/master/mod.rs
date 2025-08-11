@@ -65,6 +65,8 @@ impl ModbusMasterConnection {
                 self.comm.has_failed = true;
             }
 
+            result?;
+
             let time_out = sleep(params.max_response_time);
             tokio::pin!(time_out);
 
