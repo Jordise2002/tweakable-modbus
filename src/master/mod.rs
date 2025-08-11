@@ -1,5 +1,5 @@
 use crate::codec::ModbusSerialize;
-use crate::common::{ModbusAddress, ModbusDataType, ModbusSubprotocol, ModbusTable, ModbusResult};
+use crate::common::{ModbusAddress, ModbusDataType, ModbusResult, ModbusSubprotocol, ModbusTable};
 use crate::master::comm::ModbusMasterCommunicationInfo;
 use crate::messages::{FunctionCode, ModbusMessageData, ModbusQuery, ModbusResponse};
 use context::ModbusMasterContext;
@@ -8,8 +8,8 @@ use anyhow::{anyhow, Result};
 use std::{cell::Cell, collections::HashMap, net::SocketAddr};
 use tokio::time::{sleep, Duration};
 
-mod context;
 mod comm;
+mod context;
 
 const MAX_MODBUS_RESPONSE_TIME: Duration = tokio::time::Duration::from_millis(5000);
 
@@ -61,7 +61,7 @@ impl ModbusMasterConnection {
 
             let result = comm.write(all_queries).await;
 
-            if result.is_err(){
+            if result.is_err() {
                 self.comm.has_failed = true;
             }
 
@@ -75,6 +75,7 @@ impl ModbusMasterConnection {
                 tokio::select! {
                     bytes = comm.read() => {
                         if let Err(_) = bytes {
+                            self.comm.has_failed = true;
                             break;
                         }
 
@@ -91,6 +92,7 @@ impl ModbusMasterConnection {
 
                     }
                     _ = & mut time_out => {
+                        self.comm.has_failed = true;
                         stop_listening = true;
                     }
                 };
