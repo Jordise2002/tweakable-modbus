@@ -103,7 +103,7 @@ impl ModbusMasterConnection {
             }
         }
         if results.is_empty() {
-            Err("No queries got answered")
+            Err(anyhow!("No queries got answered!"))
         } else {
             Ok(results)
         }
