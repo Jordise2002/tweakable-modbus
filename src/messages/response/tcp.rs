@@ -12,7 +12,7 @@ impl ModbusTcpSerialize for ModbusResponse {
 
         let mut data = std::io::Cursor::new(data);
 
-        let mut size_left = data.get_ref().len();
+        let mut size_left = data.get_ref().len() - data.position() as usize;
 
         while size_left > 0 {
             let (mut message_data, length) = crate::codec::tcp::deserialize_mbap(&mut data)?;
