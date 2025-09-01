@@ -42,7 +42,7 @@ pub fn deserialize_mbap(data: &mut Cursor<Vec<u8>>) -> Result<(ModbusMessageData
     if size_left < 7 {
         return Err(anyhow!(format!(
             "Not enough bytes to form an mbap: position {}, bytes left {}",
-            size_left, position
+            position, size_left
         )));
     }
 
