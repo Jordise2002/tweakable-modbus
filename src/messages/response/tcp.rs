@@ -3,8 +3,8 @@ use std::io::Read;
 use crate::codec::tcp::ModbusTcpSerialize;
 
 use super::*;
-use byteorder::{BigEndian, ReadBytesExt};
 use anyhow::{anyhow, Result};
+use byteorder::{BigEndian, ReadBytesExt};
 
 impl ModbusTcpSerialize for ModbusResponse {
     fn tcp_deserialize(data: Vec<u8>) -> Result<Vec<Self>> {
@@ -31,7 +31,6 @@ impl ModbusTcpSerialize for ModbusResponse {
                 if let Ok(response) = deserialize_error_response(message_data, message_body) {
                     result.push(response);
                 }
-                continue;
             } else {
                 message_data.function_code = FunctionCode::try_from(raw_function_code)?;
 
@@ -336,16 +335,18 @@ mod test {
             },
             params: response::ReadResponseParameters {
                 table: ModbusTable::Coils,
-                values: vec![ModbusDataType::Coil(true),
-                ModbusDataType::Coil(false),
-                ModbusDataType::Coil(true),
-                ModbusDataType::Coil(false),
-                ModbusDataType::Coil(true),
-                ModbusDataType::Coil(false),
-                ModbusDataType::Coil(true),
-                ModbusDataType::Coil(false)]
-            }
-        },];
+                values: vec![
+                    ModbusDataType::Coil(true),
+                    ModbusDataType::Coil(false),
+                    ModbusDataType::Coil(true),
+                    ModbusDataType::Coil(false),
+                    ModbusDataType::Coil(true),
+                    ModbusDataType::Coil(false),
+                    ModbusDataType::Coil(true),
+                    ModbusDataType::Coil(false),
+                ],
+            },
+        }];
 
         test_response_serialization(input);
     }
