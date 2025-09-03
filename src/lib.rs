@@ -15,3 +15,4 @@ pub use common::ModbusDataType;
 pub use common::ModbusResult;
 pub use common::ModbusTable;
 pub use common::ModbusAddress;
+pub use messages::ExceptionCode;
