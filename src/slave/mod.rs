@@ -18,11 +18,11 @@ use tokio::net::TcpStream;
 
 mod comm;
 
-type OnReadFunction =
-    Box<dyn Fn(ModbusAddress) -> std::result::Result<ModbusDataType, ExceptionCode> + Send + Sync>;
-type OnWriteFunction = Box<
-    dyn Fn(ModbusAddress, ModbusDataType) -> std::result::Result<(), ExceptionCode> + Send + Sync,
->;
+#[async_trait::async_trait]
+pub trait ModbusCallBack: Send + Sync {
+    async fn on_read(&self, addr: ModbusAddress) -> Result<ModbusDataType, ExceptionCode>;
+    async fn on_write(&self, addr: ModbusAddress, value: ModbusDataType) -> Result<(), ExceptionCode>;
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ModbusSlaveConnectionParameters {
@@ -59,30 +59,24 @@ impl ModbusSlaveConnectionParameters {
     }
 }
 
-pub struct ModbusSlaveConnectionContext {
-    on_read: OnReadFunction,
-    on_write: OnWriteFunction,
-}
 pub struct ModbusSlaveConnection {
     comm: ModbusSlaveCommunicationInfo,
-    context: Arc<ModbusSlaveConnectionContext>,
+    callback: Arc<dyn ModbusCallBack>,
 }
 
 impl ModbusSlaveConnection {
     pub fn new_tcp(
         address: SocketAddr,
-        on_read: OnReadFunction,
-        on_write: OnWriteFunction,
+        callback: Box<dyn ModbusCallBack>,
     ) -> Self {
         let comm = ModbusSlaveCommunicationInfo::new_tcp(address);
 
-        let context = Arc::new(ModbusSlaveConnectionContext { on_read, on_write });
-
-        ModbusSlaveConnection { comm, context }
+        let callback = Arc::from(callback);
+        ModbusSlaveConnection { comm,  callback}
     }
 
-    pub fn handle_query(
-        context: Arc<ModbusSlaveConnectionContext>,
+    pub async fn handle_query(
+        context: Arc<dyn ModbusCallBack>,
         query: ModbusQuery,
     ) -> Result<ModbusResponse> {
         match query {
@@ -96,7 +90,7 @@ impl ModbusSlaveConnection {
                     slave_id: message_data.slave_id,
                 };
 
-                let result = (context.on_write)(address, params.value);
+                let result = context.on_write(address, params.value).await;
 
                 if let Err(exception_code) = result {
                     return Ok(ModbusResponse::Error {
@@ -128,7 +122,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for value in params.values {
-                    let result = (context.on_write)(address.clone(), value);
+                    let result = context.on_write(address.clone(), value).await;
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -165,7 +159,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for _index in 0..params.ammount {
-                    let result = (context.on_read)(address.clone());
+                    let result = context.on_read(address.clone()).await;
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -201,7 +195,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for value in params.values {
-                    let result = (context.on_write)(write_starting_address.clone(), value);
+                    let result = context.on_write(write_starting_address.clone(), value).await;
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
                             message_data,
@@ -218,7 +212,7 @@ impl ModbusSlaveConnection {
                 };
 
                 for _index in 0..params.read_ammount {
-                    let result = (context.on_read)(read_starting_address.clone());
+                    let result = context.on_read(read_starting_address.clone()).await;
 
                     if let Err(exception_code) = result {
                         return Ok(ModbusResponse::Error {
@@ -245,7 +239,7 @@ impl ModbusSlaveConnection {
     }
 
     pub async fn handle_connection(
-        context: Arc<ModbusSlaveConnectionContext>,
+        callback: Arc<dyn ModbusCallBack>,
         mut socket: TcpStream,
         allowed_slaves: Arc<Option<HashSet<SlaveId>>>,
         connection_time_to_live: Duration,
@@ -275,7 +269,7 @@ impl ModbusSlaveConnection {
                     }
                 }
 
-                let response = Self::handle_query(context.clone(), query)?;
+                let response = Self::handle_query(callback.clone(), query).await?;
                 ModbusSocket::write(
                     &mut socket,
                     response.serialize(ModbusSubprotocol::ModbusTCP)?,
@@ -314,12 +308,12 @@ impl ModbusSlaveConnection {
             }
 
             let allowed_slaves = params.allowed_slaves.clone();
-            let context = self.context.clone();
+            let callback = self.callback.clone();
             let connection_time_to_live = params.connection_time_to_live.clone();
 
             tokio::spawn(async move {
                 ModbusSlaveConnection::handle_connection(
-                    context,
+                    callback,
                     socket,
                     allowed_slaves,
                     connection_time_to_live,

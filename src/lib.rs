@@ -10,6 +10,7 @@ pub use master::ModbusMasterConnectionParams;
 
 pub use slave::ModbusSlaveConnection;
 pub use slave::ModbusSlaveConnectionParameters;
+pub use slave::ModbusCallBack;
 
 pub use common::ModbusDataType;
 pub use common::ModbusResult;
